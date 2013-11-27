@@ -1,0 +1,247 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Summary</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <script type="text/javascript" src="script/dojo.js"></script>
+    <script type="text/javascript" src="script/photo_move.js"></script>
+    <script type="text/javascript" src="script/canvas2image.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <script type="text/javascript">
+        var onSiteSurveyContent = '';
+        var individualSurveyContent = '';
+        var summary_id = window.localStorage.getItem("sumarry_id");
+        var random_number = window.localStorage.getItem("random_number");
+
+        var fileEnties;
+        var k = 0;
+        var scoring_type = '';
+        var compliance_benchmark = '';
+
+        document.addEventListener("deviceready", function () {
+            onSiteSurveyContent = '';
+            individualSurveyContent = '';
+            summary_id = window.localStorage.getItem("sumarry_id");
+            random_number = window.localStorage.getItem("random_number");
+            fileEnties = [];
+            k = 0;
+            scoring_type = '';
+            compliance_benchmark = '';
+
+            InitPage();
+        }, true);
+        //Load page information
+        function InitPage() {
+            var checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+            var checkingLevel = JSON.parse(window.localStorage.getItem("checkingLevel"));
+            scoring_type = checkingCategory.scoring_calculation_type;
+            compliance_benchmark = checkingCategory.compliance_benchmark;
+            document.getElementById("navInformation").innerHTML = checkingCategory.value + " &gt; " + checkingLevel.value;
+            var onSiteSurveyFileName = "SurveyData/Upload_OnSiteSurveyResult_" + summary_id + "_" + random_number + ".txt";
+            if (scoring_type == '') {// show question answer table
+                var innerHtml = window.localStorage.OnsiteIndividualQuestion;
+                if (innerHtml != null && innerHtml != "null") {
+                    document.getElementById("OnsiteIndividualQuestion").innerHTML = innerHtml;
+                    $("#OnsiteIndividualSummary").css("visibility", "hidden");
+                    $("#OnsiteIndividualQuestion").css("visibility", "visible");
+                    initSignatureInfo();
+                }
+            } else {//show compliance table.
+                var innerHtml = GetInnerHTML();
+                if (innerHtml != null && innerHtml != "null" && innerHtml != "") {
+                    document.getElementById("OnsiteIndividualSummary").innerHTML = innerHtml;
+                    $("#OnsiteIndividualSummary").css("visibility", "visible");
+                    $("#OnsiteIndividualQuestion").css("visibility", "hidden");
+                    initSignatureInfo();
+                }
+            }
+        }
+        //Get page infornations: onsite survey data & individual survery data & surmmary data.
+        function GetInnerHTML() {
+            var innerHTML = "<tr><th scope='col'>Score</th><th scope='col'>Level</th><th scope='col'>Total Points</th><th scope='col'>%</th><th scope='col'>Status</th></tr>";
+            var surveryHTML = "";
+            onSiteSurveyContent = window.localStorage.onSiteSurveyContent;
+            individualSurveyContent = window.localStorage.individualSurveyContent;
+            if (onSiteSurveyContent != null && onSiteSurveyContent != "null") {
+                surveryHTML += onSiteSurveyContent.toString();
+            }
+            if (individualSurveyContent != null && individualSurveyContent != "null") {
+                surveryHTML += individualSurveyContent.toString();
+            }
+            if (surveryHTML != "") {
+                innerHTML += surveryHTML;
+            }
+            else {
+                innerHTML = "";
+            }
+            return innerHTML;
+        }
+        //Write Upload_Summary.txt
+        function submit() {
+            var jsonString = '{"request_id":"upload_summary","token":"","Summary":[{"SummaryID":"","SummaryContent":"","Name":"","Organization":"","Remarks":"","Signature":""}]}';
+            var json = JSON.parse(jsonString);
+            json.Summary[0].SummaryID = summary_id + "#" + random_number;
+            json.Summary[0].Name = $("#txtName").val();
+            json.Summary[0].Organization = $("#txtOrganization").val();
+            json.Summary[0].Remarks = $("#txtRemarks").val();
+            json.Summary[0].Signature = $("#txtSignature").val();
+
+            var filePath = "SurveyData/Upload_Summary_" + summary_id + "_" + random_number + ".txt";
+            var fileContent = JSON.stringify(json);
+            var onWriteEnd = function () {
+                var PhotosAndSummarySections = JSON.parse(window.localStorage.getItem("onsitePhotosAndSummarySections"));
+                for (var i = 0; i < PhotosAndSummarySections.length; i++) {
+                    if (PhotosAndSummarySections[i].item == "Summary") {
+                        PhotosAndSummarySections[i].section_isdone = "1";
+                        break;
+                    }
+                }
+                window.localStorage.onsitePhotosAndSummarySections = JSON.stringify(PhotosAndSummarySections);
+                window.location.href = 'PhotosAndSummary.html';
+            }
+            var onError = function () {
+                //TODO ...
+                sAlert("save summary survey data failed.");
+            }
+            var useCapture = true;
+            FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+        }
+
+        function GotoSignaturePage() {
+            window.localStorage.signatureName = $("#txtName").val();
+            window.localStorage.signatureOrganization = $("#txtOrganization").val();
+            window.localStorage.signatureRemarks = $("#txtRemarks").val();
+            window.location.href = 'Signature.html';
+
+        }
+
+        function initSignatureInfo() {
+            if (window.localStorage.getItem("signatureName") != null
+                && window.localStorage.getItem("signatureName") != "null"
+                && window.localStorage.getItem("signatureName") != "") {
+                $("#txtName").val(window.localStorage.getItem("signatureName"));
+            }
+
+            if (window.localStorage.getItem("signatureOrganization") != null
+                && window.localStorage.getItem("signatureOrganization") != "null"
+                && window.localStorage.getItem("signatureOrganization") != "") {
+                $("#txtOrganization").val(window.localStorage.getItem("signatureOrganization"));
+            }
+
+            if (window.localStorage.getItem("signatureRemarks") != null
+                && window.localStorage.getItem("signatureRemarks") != "null"
+                && window.localStorage.getItem("signatureRemarks") != "") {
+                $("#txtRemarks").val(window.localStorage.getItem("signatureRemarks"));
+            }
+            if (window.localStorage.getItem("canvasSignature") != null
+                && window.localStorage.getItem("canvasSignature") != "null"
+                && window.localStorage.getItem("canvasSignature") != "") {
+                Signatures = JSON.parse(window.localStorage.getItem("canvasSignature"));
+                if (Signatures.length > 0) {
+                    $("#txtSignature").val(Signatures[0].SignatureAddress);
+                }
+            }
+        }
+
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_submit" onclick="javascript:submit();">
+        </div>
+        <div class="main_title">
+            Summary
+        </div>
+        <div class="nav_cont">
+            <div class="nav" id="navInformation">
+                PUB</div>
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <!-- 内容列表 -->
+            <ul>
+                <li>
+                    <div class="select_cont">
+                        <table class="summary_table" id="OnsiteIndividualSummary" style="visibility: visible">
+                            <tr>
+                                <th scope="col">
+                                    Score
+                                </th>
+                                <th scope="col">
+                                    Level
+                                </th>
+                                <th scope="col">
+                                    Total Points
+                                </th>
+                                <th scope="col">
+                                    %
+                                </th>
+                                <th scope="col">
+                                    Status
+                                </th>
+                            </tr>
+                        </table>
+                        <table class="summary_table" id="OnsiteIndividualQuestion" style="visibility: hidden">
+                            <tr>
+                                <th scope="col">
+                                    Question
+                                </th>
+                                <th scope="col">
+                                    Answer
+                                </th>
+                            </tr>
+                        </table>
+                        <table border="0" width="100%">
+                            <tr>
+                                <td class="select_title_summary">
+                                    Name :
+                                </td>
+                                <td class="select_box_summary">
+                                    <input id="txtName" type="text" class="cisco_input" value="" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="select_title_summary">
+                                    Organization:
+                                </td>
+                                <td class="select_box_summary">
+                                    <input id="txtOrganization" type="text" class="cisco_input" value="" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="select_title_summary">
+                                    Remarks :
+                                </td>
+                                <td class="select_box_summary">
+                                    <input id="txtRemarks" type="text" class="cisco_input" value="" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="padding-left: 250px; padding-right: 250px;">
+                                    <input id="btnSignature" type="button" class="cisco_btn_long" value="Signature" onclick="javascript:GotoSignaturePage();" />
+                                </td>
+                            </tr>
+                        </table>
+                        <input id="txtSignature" type="text" style="display: none" readonly="readonly" value="" />
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

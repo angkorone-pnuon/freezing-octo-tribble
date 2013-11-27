@@ -1,0 +1,111 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Main Page</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <script type="text/javascript">
+        var token = JSON.parse(window.localStorage.getItem("login_user")).token;
+        var siteID = JSON.parse(window.localStorage.getItem("checkingAddress")).id;
+
+        var employeeList = [];
+
+        function getEmployee(eo_number) {
+            var _employee = null;
+            for (var i = 0; i < employeeList.length; i++) {
+                if (employeeList[i].EONumber == eo_number) {
+                    _employee = employeeList[i];
+                    break;
+                }
+            }
+            return _employee;
+        }
+
+        function submit() {
+            employeeList = window.localStorage.getItem("employeeList") ? JSON.parse(window.localStorage.getItem("employeeList")) : [];
+            if (employeeList == null) {
+                employeeList = [];
+            }
+            document.getElementById("SCPOID").value = $.trim(document.getElementById("SCPOID").value);
+            var EONumber = document.getElementById("SCPOID").value;
+            if (EONumber == null || EONumber.length == 0) {
+                sAlert("Please enter a SC/PO ID!");
+                return;
+            }
+            if (getEmployee(EONumber) != null) {
+                sAlert("This EO is allready exits.");
+                return
+            }
+            var EOID = NewGuid();
+            var EONumber = document.getElementById("SCPOID").value;
+            var objGender = document.getElementById("Gender");
+            var Gender = objGender.options[objGender.selectedIndex].value;
+            var employee = { EOID: EOID, SiteID: siteID, EONumber: EONumber, Gender: Gender, Remark: "", FilePath: "" };
+            employeeList.push(employee);
+            window.localStorage.employeeList = JSON.stringify(employeeList);
+            window.location.href = 'ActiveEOList.html';
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <input type="button" class="btn_back" onclick="javascript:window.location.href = 'ActiveEOList.html';" />
+            <img src="images/Login_logo.png" class="top_logo" />
+            <!--<input type="button" class="btn_submit" onclick="javascript:submit();" />-->
+            <input type="button" class="btn_submit" ontouchstart="javascript:submit();" />
+        </div>
+        <div class="main_title">
+            Add EO
+        </div>
+        <div class="nav_cont">
+            <!--	<div class="nav">SC/PO</div>
+        <div class="record">Recorded SC/PO: 2</div>-->
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <!-- 内容列表 -->
+            <ul>
+                <li>
+                    <div class="select_cont">
+                        <table border="0" class="edit_table">
+                            <tr>
+                                <td class="select_title_editPage">
+                                    SC/PO ID:
+                                </td>
+                                <td class="select_box_editPage">
+                                    <input type="text" id="SCPOID" class="cisco_input" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="select_title_editPage">
+                                    Gender :
+                                </td>
+                                <td class="select_box_editPage">
+                                    <select id="Gender" class="cisco_select">
+                                        <option value="0">Female</option>
+                                        <option value="1">Male</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

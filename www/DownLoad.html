@@ -1,0 +1,198 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Main Page</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <link rel="stylesheet" href="css/Waitting.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/CheckConnection.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript" charset="utf-8">
+        //This page will Initalizer the localStorage        
+        //get the login user information (is JSON object type)
+        //Initalizer by index.html
+        var login_user = null;
+        var question_version = null;
+        var nseconds_timeout = 30;
+        var upload_nSecond = 0;
+        var download_nSecond = 0;
+        var pageload_nSecond = 0;
+        document.addEventListener("deviceready", function () {
+            login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+            if (login_user == null || login_user == "" || login_user == "null") {
+                sAlert("Login user is expired, please relogin!");
+                window.location.href = "index.html";
+            }
+            question_version = window.localStorage.getItem("question_version") ? JSON.parse(window.localStorage.getItem("question_version")) : null; ;
+            if (question_version == null) {
+                var filePath = "DataSource/QuestionVersion.txt";
+                var useCapture = true;
+                var onLoadEnd = function (evt) {
+                    var readText = evt.target.result;
+                    window.localStorage.question_version = readText;
+                    question_version = JSON.parse(readText);
+                }
+                var onError = function () {
+                    //TODO: Do Nothing...
+                }
+                FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+            }
+        }, true);
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <input type="button" class="btn_back" onclick="javascript:window.location.href='index.html';">
+            <img src="images/Login_logo.png" class="top_logo" alt="" />
+            <input type="button" class="btn_logout" onclick="javascript:window.location.href='index.html';">
+        </div>
+        <div class="main_title">
+            Download/Update Data
+        </div>
+        <div class="nav_cont">
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="circularG">
+            <div id="circularG_1" class="circularG">
+            </div>
+            <div id="circularG_2" class="circularG">
+            </div>
+            <div id="circularG_3" class="circularG">
+            </div>
+            <div id="circularG_4" class="circularG">
+            </div>
+            <div id="circularG_5" class="circularG">
+            </div>
+            <div id="circularG_6" class="circularG">
+            </div>
+            <div id="circularG_7" class="circularG">
+            </div>
+            <div id="circularG_8" class="circularG">
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" src="script/DownLoadQuestions.js"></script>
+    <script type="text/javascript" src="script/UploadSurveyData.js"></script>
+    <script type="text/javascript" src="script/UploadSurveyPhotos.js"></script>
+    <script type="text/javascript" src="script/UploadSurveySketchs.js"></script>
+    <script type="text/javascript" src="script/UploadSurveySignature.js"></script>
+    <script type="text/javascript" src="script/UploadSurveyDataBak.js"></script>
+    <script type="text/javascript">
+        var isPageOperationDone = false;
+        var isPageOperationFailed = false;
+
+        function gotoMainPage() {
+            setTimeout(function () {
+                FileOperation.ReadFileForMainPage();
+                setTimeout(function () {
+                    window.location.href = "MainPage.html";
+                }, 500);
+            }, 500);
+        }
+
+        setTimeout(function () {
+            gotoMainPage();
+        }, 60000);
+
+        document.addEventListener("deviceready", function () {
+            setTimeout(function () {
+                //check upload the history data to server
+                uploadSurveryDataEnded();
+                //check upload survey photos to server
+                uploadPhotosEnded();
+                //check upload survey sketch to server
+                uploadSketchsEnded();
+                //check upload survey signature to server
+                uploadSignaturesEnded();
+                //check upload survey data bak to server
+                uploadDataBakEnded();
+
+                //Download the lastest question version from the Cisco-iPad server
+                //check the question version 
+                requestQuestionVersion(login_user.token);
+                //check download question version finished
+                DownloadQuestionsEnded();
+
+                var nSeconds_Interval = 0;
+                var iID_Interval = setInterval(function () {
+                    nSeconds_Interval += 5;
+                    //check the operation is done
+                    checkPageOperationStatus();
+
+                    if (isPageOperationDone) {
+                        nSeconds_Interval = 0;
+                        clearInterval(iID_Interval);
+                        //TODO wether the recover data source finished ？？？
+                        //goto MainPage.html
+                        gotoMainPage();
+                    }
+                    if (nSeconds_Interval >= nseconds_timeout) {
+                        nSeconds_Interval = 0;
+                        clearInterval(iID_Interval);
+
+                        //goto MainPage.html
+                        gotoMainPage();
+                    }
+                }, 5000);
+            }, 2000);
+        }, true);
+
+        function checkPageOperationStatus() {
+            //SurveryDataEnded && SurveryDataFailed
+            //SurveryPhotosEnded && SurveryPhotosFailed
+            //SurverySketchsEnded && SurverySketchsFailed
+            //SurverySignaturesEnded && SurverySignaturesFailed
+            //SurveryDataBakEnded && SurveryDataBakFailed
+            //RedownloadVersion && DownloadQuestionEnded && DownloadQuestionFailed			
+            //isPageOperationDone && isPageOperationFailed
+            isPageOperationDone = false;
+            isPageOperationFailed = false;
+            if (SurveryDataEnded && SurveryPhotosEnded && SurverySketchsEnded
+        	    && SurverySignaturesEnded && SurveryDataBakEnded && DownloadQuestionEnded) {
+                isPageOperationDone = true;
+                if (DownloadQuestionFailed) {
+                    if (RedownloadVersion) {
+                        //recover_DataSource with old version
+                        recover_DataSource();
+                        sAlert("redownload question version data failed,recover with the old version.");
+                        isPageOperationFailed = true;
+                    }
+                    else {
+                        var confirmCallback = function (buttonIndex) {
+                            if (buttonIndex == 1) {//button OK
+                                nSeconds_Interval = 0;
+                                //redownload the question version data
+                                RedownloadQuestionVersion();
+                                return
+                            }
+                            else {//button "Cancel"
+                                //recover_DataSource with old version
+                                recover_DataSource();
+                                sAlert("redownload question version data failed,recover with the old version.");
+                                isPageOperationFailed = true;
+                            }
+                        }
+                        sConfirm("Question version data update failed,redownload it?", confirmCallback);
+                    }
+                }
+                else {
+                    isPageOperationFailed = false;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

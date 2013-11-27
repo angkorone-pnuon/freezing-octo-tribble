@@ -1,0 +1,264 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>On-Site Survey</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript" charset="utf-8">
+        //This page will Initalizer the localStorage
+        //JSON object type,format string: SurveyData\Upload_OnSiteSurveyResult.txt
+        //window.localStorage.onsiteSurveyResult
+        //get the login user information (is JSON object type)
+        //Initalizer by index.html
+        var login_user;
+        //get basic checked information (is JSON object type prototype: id,value)
+        //Initalizer by MainPage.html
+        var checkingCategory;
+
+        var checkingLevel;
+        var checkingSector;
+        var checkingAddress;
+        var random_number;
+
+
+        //get onsite survey question sections ( is JSON object(Question Section))
+        //Initalizer by MainPage.html
+        var onsiteSurveySections;
+        //get onsite survey question sections status wether is done( is JSON object)
+        //prototype：question_section_id,question_section_isdone,question_section_flag_no
+        //Initalizer by MainPage.html
+        var onsiteSurveySectionStatus;
+        //get onsite survey questions ( is JSON object(OnSiteSurveyResult))
+        //Initalizer by OnSiteSurveyData.html
+        var onsiteSurveyResult;
+
+        function GetNavInnerHTML(category, level) { // get nav information innerHTML
+            var innerHTML = category.value + " &gt; " + level.value;
+            return innerHTML;
+        }
+
+        function GetSectionStyle_Display(section) { //get question section display type surveySectionStatus: onsiteSurveySectionStatus
+            var sectionDisplay = 'style="display: block"';
+            var surveySectionStatus = window.localStorage.getItem("onsiteSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("onsiteSurveySectionStatus")).onsiteSurveySectionStatus : null;
+            if (surveySectionStatus == null || surveySectionStatus.length == 0) {
+                sectionDisplay = 'style="display: none"';
+            }
+            else if (section.question_section_dependency == "" || section.question_section_dependency == "0") { // whether have dependency parent section
+                sectionDisplay = 'style="display: block"';
+            }
+            else {
+                sectionDisplay = 'style="display: none"';
+                //have dependency parent section
+                var dependencyParent = section.question_section_dependency.split('#');
+                for (var i = 0; i < dependencyParent.length; i++) {
+                    for (var ii = 0; ii < surveySectionStatus.length; ii++) {
+                        if (surveySectionStatus[ii].question_section_id == dependencyParent[i]) {
+                            if (surveySectionStatus[ii].question_section_isdone == "1" && surveySectionStatus[ii].question_section_flag_no == "1") {
+                                sectionDisplay = 'style="display: block"';
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            for (var index = 0; index < surveySectionStatus.length; index++) {
+                if (surveySectionStatus[index].question_section_id == section.question_section_id) {
+                    if (sectionDisplay == 'style="display: block"') {
+                        surveySectionStatus[index].question_section_display = "block";
+                    }
+                    else {
+                        surveySectionStatus[index].question_section_display = "none";
+                    }
+                    break;
+                }
+            }
+            window.localStorage.onsiteSurveySectionStatus = '{"onsiteSurveySectionStatus":' + JSON.stringify(surveySectionStatus) + '}';
+            return sectionDisplay;
+        }
+
+        function GetSectionImage(section) { //get question section image whether is done
+            var surveySectionStatus = window.localStorage.getItem("onsiteSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("onsiteSurveySectionStatus")).onsiteSurveySectionStatus : null;
+            if (surveySectionStatus == null || surveySectionStatus.length == 0) {
+                return '<img alt="" src="images/not done.png" />';
+            }
+            var imageHTML = '<img alt="" src="images/not done.png" />';
+            for (var i = 0; i < surveySectionStatus.length; i++) {
+                if (surveySectionStatus[i].question_section_id == section.question_section_id
+                    && surveySectionStatus[i].question_section_isdone == "1") {
+                    imageHTML = '<img alt="" src="images/finished.png" />';
+                    break;
+                }
+            }
+            return imageHTML;
+        }
+
+        function sectionClick(sectionId) {
+            onsiteSurveySectionStatus = JSON.parse(window.localStorage.getItem("onsiteSurveySectionStatus")).onsiteSurveySectionStatus;
+            var isDone = "0";
+            for (var i = 0; i < onsiteSurveySectionStatus.length; i++) {
+                if (onsiteSurveySectionStatus[i].question_section_id == sectionId) {
+                    isDone = onsiteSurveySectionStatus[i].question_section_isdone.toString();
+                    break;
+                }
+            }
+            //if (isDone == "1") {
+            //    //sAlert("This section has done.");
+            //    sAlert("This section has done.");
+            //    return;
+            //}
+            window.localStorage.section_id = sectionId;
+            window.location.href = 'OnSiteSurveyData.html?section_id=' + sectionId;
+        }
+
+        function GetSectionInnerHTML(surveySections) { //get onsite survey question section inner html in the page
+            var innerHTML = ""; var index = 0; var sectionIndex = 0;
+            for (var i = 0; i < surveySections.length; i++) {
+                //var onsiteSection = surveySections[i];
+                if (checkingCategory.id == surveySections[i].checking_category_id
+                    && surveySections[i].question_section_level <= checkingLevel.value) {
+                    index += 1;
+                    var checkingCategoryId = surveySections[i].checking_category_id;
+                    var questionSectionLevel = surveySections[i].question_section_level;
+                    var questionSectionText = surveySections[i].question_section_text;
+                    var imgHTML = GetSectionImage(surveySections[i]);
+                    var section_style_display = GetSectionStyle_Display(surveySections[i]);
+                    if (section_style_display == 'style="display: block"') {
+                        sectionIndex += 1;
+                    }
+                    var clickHandler = "javascript:sectionClick(" + surveySections[i].question_section_id + ");";
+                    var divInnerHTML = '<div class="btn_cont" ' + section_style_display + '>';
+                    divInnerHTML += '<label>' + sectionIndex + '.</label>';
+                    //divInnerHTML += '<button class="cisco_btn_long" onclick="' + clickHandler + '">' + questionSectionText + "</button>";
+                    divInnerHTML += '<button class="cisco_btn_long" ontouchstart="' + clickHandler + '">' + questionSectionText + "</button>";
+                    divInnerHTML += imgHTML;
+                    divInnerHTML += '<div class="clear"></div></div>';
+                    innerHTML += divInnerHTML;
+                }
+            }
+            return innerHTML;
+        }
+
+        function LoadOnSiteSurveySections() {
+            //Initalizer navInformation
+            var navInnerHTML = GetNavInnerHTML(checkingCategory, checkingLevel);
+            document.getElementById("navInformation").innerHTML = navInnerHTML;
+            //Initalizer onsite survey question sections
+            var onsiteSectionInnerHTML = GetSectionInnerHTML(onsiteSurveySections);
+            document.getElementById("QuestionSection").innerHTML = onsiteSectionInnerHTML;
+        }
+
+        function nextButton_onclick() {
+            onsiteSurveySectionStatus = window.localStorage.getItem("onsiteSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("onsiteSurveySectionStatus")).onsiteSurveySectionStatus : null;
+            if (onsiteSurveySectionStatus == null || onsiteSurveySectionStatus.length == 0) {
+                //sAlert("There is no data to upload.");
+                sAlert("There is no data to upload.");
+                window.location.href = "MainPage.html";
+                return;
+            }
+            onsiteSurveyResult = window.localStorage.getItem("onsiteSurveyResult") != null && window.localStorage.getItem("onsiteSurveyResult") != "null" ? JSON.parse(window.localStorage.getItem("onsiteSurveyResult")).onsiteSurveyResult : null;
+            if (onsiteSurveyResult == null || onsiteSurveyResult.length == 0) {
+                //sAlert("Every question section should be done!");
+                sAlert("Every question section should be done!");
+                return;
+            }
+            var isDone = true;
+            for (var i = 0; i < onsiteSurveySectionStatus.length; i++) {
+                if (onsiteSurveySectionStatus[i].question_section_isdone.toString() == "0"
+                    && onsiteSurveySectionStatus[i].question_section_display.toString() == "block") {
+                    isDone = false;
+                    break;
+                }
+            }
+            if (!isDone) {
+                //sAlert("Every question section should be done!");
+                sAlert("Every question section should be done!");
+                return;
+            }
+            //Write the onsiteSurveyResult to the local system for upload
+            login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+            if (login_user == null) {
+                //sAlert("Login Expired!");
+                sAlert("Login Expired!");
+                return;
+            }
+            var user_token = login_user.token;
+            var sumarry_id = window.localStorage.getItem("sumarry_id") ? window.localStorage.getItem("sumarry_id") : null;
+            var Upload_OnSiteSurveyResult = '{"request_id":"upload_onsite_survey","token":"' + user_token + '","OnSiteSurveyResult":' + JSON.stringify(onsiteSurveyResult) + '}';
+
+            //FileWrite: function (filePath, fileContent, false, onWriteEnd, onError, useCapture)
+            var filePath = "SurveyData/Upload_OnSiteSurveyResult_" + sumarry_id + "_" + random_number + ".txt";
+            var fileContent = Upload_OnSiteSurveyResult;
+            var onWriteEnd = function () {
+                window.localStorage.onsiteSurveyResult = Upload_OnSiteSurveyResult;
+                var individualSurveySections = window.localStorage.getItem("individualSurveySections") ? JSON.parse(window.localStorage.getItem("individualSurveySections")).individualSurveySections : null;
+                if (individualSurveySections != null && individualSurveySections.length > 0) {
+                    if (checkingCategory.value == "URA Premises" || checkingCategory.value == "STB - Hotel") {
+                        window.location.href = 'IndividualSurvey.html';
+                    }
+                    else {
+                        window.location.href = 'ActiveEOList.html';
+                    }
+                }
+                else {
+                    window.location.href = 'PhotosAndSummary.html'
+                }
+            }
+            var onError = function () {
+                //TODO 
+                sAlert("save onsite survery data failed.");
+            }
+            var useCapture = true;
+            FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+        }
+
+        document.addEventListener("deviceready", function () {
+            login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+            random_number = window.localStorage.getItem("random_number");
+            checkingCategory = window.localStorage.getItem("checkingCategory") ? JSON.parse(window.localStorage.getItem("checkingCategory")) : null;
+            checkingLevel = window.localStorage.getItem("checkingLevel") ? JSON.parse(window.localStorage.getItem("checkingLevel")) : null;
+            checkingSector = window.localStorage.getItem("checkingSector") ? JSON.parse(window.localStorage.getItem("checkingSector")) : null;
+            checkingAddress = window.localStorage.getItem("checkingAddress") ? JSON.parse(window.localStorage.getItem("checkingAddress")) : null;
+
+            onsiteSurveySections = window.localStorage.getItem("onsiteSurveySections") ? JSON.parse(window.localStorage.getItem("onsiteSurveySections")).onsiteSurveySections : null;
+            onsiteSurveySectionStatus = window.localStorage.getItem("onsiteSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("onsiteSurveySectionStatus")).onsiteSurveySectionStatus : null;
+            LoadOnSiteSurveySections();
+        }, true);
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img src="images/Login_logo.png" class="top_logo" alt="" />
+            <input type="button" class="btn_next" onclick="javascript:nextButton_onclick();">
+        </div>
+        <div class="main_title">
+            On-Site Survey
+        </div>
+        <div class="nav_cont">
+            <div class="nav" id="navInformation">
+            </div>
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <!-- 内容列表 -->
+            <ul>
+                <li id="QuestionSection"></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

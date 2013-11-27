@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Gignature View</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js" charset="utf-8"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <script type="text/javascript" src="script/photo_move.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <script type="text/javascript" charset="utf-8">
+        function createSignatureDiv(signature) {
+            var filePath = signature.FilePath;
+            var signatureData = signature.SignatureData;
+
+            //Create Div information
+            var divSignature = document.createElement('div');
+            divSignature.id = filePath.substring(filePath.lastIndexOf('/') + 1);
+            divSignature.className = 'canvas_cont';
+            //Create Img information
+            var imgSignature = document.createElement('img');
+            imgSignature.className = 'photo_img';
+            imgSignature.src = signatureData;
+
+            divSignature.appendChild(imgSignature);
+            return divSignature;
+        }
+
+        function deleteSignature() {
+            if ($(".canvas_cont").length == 0) {
+                sAlert("There have no signature to delete.");
+                return;
+            }
+
+            var confirmCallback = function (buttonIndex) {
+                if (buttonIndex != 1) {
+                    return;
+                }
+
+                var divSlider = document.getElementById('slider');
+                var divSignature = divSlider.children[pindex - 1];
+                var signatureName = divSignature.id;
+                //Remove signature file information.
+                var signatures = JSON.parse(window.localStorage.getItem("canvasSignature"));
+                for (var i = 0; i < signatures.length; i++) {
+                    var fullPath = signatures[i].FilePath;
+                    var divId = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+
+                    if (signatureName == divId) {
+                        var filePath = "SurveySignature/" + signatureName;
+                        var successHandle = function () {
+                            signatures.splice(i, 1);
+                            window.localStorage.canvasSignature = JSON.stringify(signatures);
+                            window.localStorage.setItem(filePath, ""); //?? What's this ???
+
+                            divSlider.removeChild(divSignature); //Remove the signature from the page.
+                            changeDisplay();
+                            sAlert("Signature removed success.");
+                        }
+                        var failedHandle = function () {
+                            sAlert("Signature removed failed.");
+                        }
+                        var useCapture = true;
+                        FileOperation.FileRemove(filePath, successHandle, failedHandle, useCapture);
+                        break;
+                    }
+                }
+            }
+            sConfirm("Are you sure delete the signature?", confirmCallback);
+        }
+
+        document.addEventListener("deviceready", function () {
+            if (window.localStorage.getItem("canvasSignature") != null
+                && window.localStorage.getItem("canvasSignature") != "null"
+                && window.localStorage.getItem("canvasSignature") != "") {
+                var signatures = JSON.parse(window.localStorage.getItem("canvasSignature"));
+                for (var i = 0; i < signatures.length; i++) {
+                    var divSlider = document.getElementById('slider');
+                    var divSignature = createSignatureDiv(signatures[i]);
+                    divSlider.appendChild(divSignature);
+                    optionWidth = $(".photo_cont").width() - 40;
+                    changeWidth = optionWidth + 40;
+                    $(".canvas_cont").css("width", optionWidth);
+                    $(".canvas_cont").css("height", optionWidth * 0.75);
+                    changeDisplay();
+                }
+            }
+        }, true);
+    </script>
+</head>
+<body>
+    <div id="headerPhoto">
+        <div class="top">
+            <img alt="" src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_back" onclick="window.history.go(-1);" />
+        </div>
+    </div>
+    <div class="photo_outer">
+        <!--<div id="left_move" style="display: none;" onclick="moveLeft()">
+            <img src="images/toleft.png"></div>
+        <div id="right_move" style="display: none;" onclick="moveRight()">
+            <img src="images/toright.png"></div>-->
+        <div id="left_move" style="display: none;" ontouchstart="javascript:moveLeft();">
+            <img src="images/toleft.png"></div>
+        <div id="right_move" style="display: none;" ontouchstart="javascript:moveRight();">
+            <img src="images/toright.png"></div>
+        <div class="photo_cont">
+            <div id="slider">
+            </div>
+            <div class="clear">
+            </div>
+        </div>
+        <div style="text-align: center;">
+            <!--<input type="button" value="Delete Signature" class="btn_normal" onclick="deleteSignature();" />-->
+            <input type="button" value="Delete Signature" class="btn_normal" ontouchstart="javascript:deleteSignature();" />
+        </div>
+    </div>
+</body>
+</html>

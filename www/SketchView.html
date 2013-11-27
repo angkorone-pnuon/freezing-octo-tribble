@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Sketch View</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js" charset="utf-8"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <script type="text/javascript" src="script/photo_move.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <script type="text/javascript" charset="utf-8">
+        function createSketchDiv(sketch) {
+            var filePath = sketch.FilePath;
+            var sketchData = sketch.SketchData;
+
+            //Create Div information
+            var divSketch = document.createElement('div');
+            divSketch.id = filePath.substring(filePath.lastIndexOf('/') + 1);
+            divSketch.className = 'canvas_cont';
+            //Create Img information
+            var imgSketch = document.createElement('img');
+            imgSketch.className = 'photo_img';
+            imgSketch.src = sketchData;
+
+            divSketch.appendChild(imgSketch);
+            return divSketch;
+        }
+
+        function deleteSketch() {
+            if ($(".canvas_cont").length == 0) {
+                sAlert("There have no sketch to delete.");
+                return;
+            }
+
+            var confirmCallback = function (buttonIndex) {
+                if (buttonIndex != 1) {
+                    return;
+                }
+
+                var divSlider = document.getElementById('slider');
+                var divSketch = divSlider.children[pindex - 1];
+                var sketchName = divSketch.id;
+                //Remove sketch file information.
+                var sketchs = JSON.parse(window.localStorage.getItem("canvasSketch"));
+                for (var i = 0; i < sketchs.length; i++) {
+                    var fullPath = sketchs[i].FilePath;
+                    var divId = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+
+                    if (sketchName == divId) {
+                        var filePath = "SurveySketchs/" + sketchName;
+                        var successHandle = function () {
+                            sketchs.splice(i, 1);
+                            window.localStorage.canvasSketch = JSON.stringify(sketchs);
+                            window.localStorage.setItem(filePath, ""); //?? What's this ???
+
+                            divSlider.removeChild(divSketch); //Remove the sketch from the page.
+                            changeDisplay();
+                            sAlert("Sketch removed success.");
+                        }
+                        var failedHandle = function () {
+                            sAlert("Sketch removed failed.");
+                        }
+                        var useCapture = true;
+                        FileOperation.FileRemove(filePath, successHandle, failedHandle, useCapture);
+                        break;
+                    }
+                }
+            }
+            sConfirm("Are you sure delete the sketch?", confirmCallback);
+        }
+
+        document.addEventListener("deviceready", function () {
+            if (window.localStorage.getItem("canvasSketch") != null
+                && window.localStorage.getItem("canvasSketch") != "null"
+                && window.localStorage.getItem("canvasSketch") != "") {
+                var sketchs = JSON.parse(window.localStorage.getItem("canvasSketch"));
+                for (var i = 0; i < sketchs.length; i++) {
+                    var divSlider = document.getElementById('slider');
+                    var divSketch = createSketchDiv(sketchs[i]);
+                    divSlider.appendChild(divSketch);
+                    optionWidth = $(".photo_cont").width() - 40;
+                    changeWidth = optionWidth + 40;
+                    $(".canvas_cont").css("width", optionWidth);
+                    $(".canvas_cont").css("height", optionWidth * 0.75);
+                    changeDisplay();
+                }
+            }
+        }, true);
+    </script>
+</head>
+<body>
+    <div id="headerPhoto">
+        <div class="top">
+            <img alt="" src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_back" onclick="javascript:window.history.go(-1);" />
+        </div>
+    </div>
+    <div class="photo_outer">
+        <!--<div id="left_move" style="display: none;" onclick="moveLeft()">
+            <img src="images/toleft.png"></div>
+        <div id="right_move" style="display: none;" onclick="moveRight()">
+            <img src="images/toright.png"></div>-->
+        <div id="left_move" style="display: none;" ontouchstart="javascript:moveLeft();">
+            <img src="images/toleft.png"></div>
+        <div id="right_move" style="display: none;" ontouchstart="javascript:moveRight();">
+            <img src="images/toright.png"></div>
+        <div class="photo_cont">
+            <div id="slider">
+            </div>
+            <div class="clear">
+            </div>
+        </div>
+        <div style="text-align: center;">
+            <!--<input type="button" value="Delete Sketch" class="btn_normal" onclick="deleteSketch();" />-->
+            <input type="button" value="Delete Sketch" class="btn_normal" ontouchstart="javascript:deleteSketch();" />
+        </div>
+    </div>
+</body>
+</html>

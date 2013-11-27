@@ -1,0 +1,387 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Individual Survey</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript" charset="utf-8">
+        //This page will Initalizer the localStorage
+        //JSON object type,format string: SurveyData\Upload_individualSurveyResult.txt
+        //window.localStorage.individualSurveyResult
+
+        //get the login user information (is JSON object type)
+        //Initalizer by index.html
+        var login_user;
+
+        //get basic checked information (is JSON object type prototype: id,value)
+        //Initalizer by MainPage.html
+        var checkingCategory;
+        var checkingLevel;
+        var checkingSector;
+        var checkingAddress;
+
+        var active_eo;
+        var finishedEO;
+        var active_interviewee;
+
+        var individualSurveySections;
+        var individualSurveySectionStatus;
+        var individualSurveyResult;
+        var random_number;
+
+        function GetNavInnerHTML(category, level) { // get nav information innerHTML
+            var innerHTML = category.value + " &gt; " + level.value;
+            return innerHTML;
+        }
+
+        function GetSectionStyle_Display(section) { //get question section display type surveySectionStatus: individualSurveySectionStatus
+            var sectionDisplay = 'style="display: block"';
+            var surveySectionStatus = window.localStorage.getItem("individualSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus : null;
+            if (surveySectionStatus == null || surveySectionStatus.length == 0) {
+                sectionDisplay = 'style="display: none"';
+            }
+            else if (section.question_section_dependency == ""
+                    || section.question_section_dependency == "0") { // whether have dependency parent section
+                sectionDisplay = 'style="display: block"';
+            }
+            else {
+                sectionDisplay = 'style="display: none"';
+                //have dependency parent section
+                var dependencyParent = section.question_section_dependency.split('#');
+                for (var i = 0; i < dependencyParent.length; i++) {
+                    for (var ii = 0; ii < surveySectionStatus.length; ii++) {
+                        if (surveySectionStatus[ii].question_section_id == dependencyParent[i]
+                        && surveySectionStatus[ii].question_section_isdone == "1"
+                        && surveySectionStatus[ii].question_section_flag_no == "1") {
+                            sectionDisplay = 'style="display: block"';
+                            break;
+                        }
+                    }
+                }
+            }
+            for (var index = 0; index < surveySectionStatus.length; index++) {
+                if (surveySectionStatus[index].question_section_id == section.question_section_id) {
+                    if (sectionDisplay == 'style="display: block"') {
+                        surveySectionStatus[index].question_section_display = "block";
+                    }
+                    else {
+                        surveySectionStatus[index].question_section_display = "none";
+                    }
+                    break;
+                }
+            }
+            window.localStorage.individualSurveySectionStatus = '{"individualSurveySectionStatus":' + JSON.stringify(surveySectionStatus) + '}';
+            return sectionDisplay;
+        }
+
+        function GetSectionImage(section) { //get question section image whether is done
+            var surveySectionStatus = window.localStorage.getItem("individualSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus : null;
+            if (surveySectionStatus == null || surveySectionStatus.length == 0) {
+                return '<img alt="" src="images/not done.png" />';
+            }
+            var imageHTML = '<img alt="" src="images/not done.png" />';
+            for (var i = 0; i < surveySectionStatus.length; i++) {
+                if (surveySectionStatus[i].question_section_id == section.question_section_id
+                    && surveySectionStatus[i].question_section_isdone == "1") {
+                    imageHTML = '<img alt="" src="images/finished.png" />';
+                    break;
+                }
+            }
+            return imageHTML;
+        }
+
+        function section_onclick(sectionId) {
+            window.localStorage.section_id = sectionId;
+            individualSurveySections = JSON.parse(window.localStorage.getItem("individualSurveySections"));
+            individualSurveySectionStatus = JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus;
+            var isDone = "0"; var question_section_morf = "0";
+            for (var i = 0; i < individualSurveySectionStatus.length; i++) {
+                if (individualSurveySectionStatus[i].question_section_id == sectionId) {
+                    isDone = individualSurveySectionStatus[i].question_section_isdone.toString();
+                    question_section_morf = individualSurveySectionStatus[i].question_section_morf.toString();
+                    break;
+                }
+            }
+            checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+            if (checkingCategory.value == "URA Premises" || checkingCategory.value == "STB - Hotel") {
+                window.location.href = "ActiveIntervieweeList.html";
+            }
+            else {
+                if (question_section_morf == "0") {
+                    window.location.href = 'IndividualSurveyData.html?section_id=' + sectionId;
+                }
+                else {
+                    active_eo = window.localStorage.getItem("EOentry") ? JSON.parse(window.localStorage.getItem("EOentry")) : null;
+                    if (active_eo.Gender == 0) {
+                        window.location.href = 'IndividualSurveyData_Female.html?section_id=' + sectionId;
+                    }
+                    else {
+                        window.location.href = 'IndividualSurveyData_Male.html?section_id=' + sectionId;
+                    }
+                }
+            }
+        }
+
+        function GetSectionInnerHTML(surveySections) { //get Individual survey question section inner html in the page
+            var innerHTML = ""; var index = 0; var sectionIndex = 0;
+            var isFinished = finishedEO.SectionStatus.length > 0;
+			
+            if (isFinished) {
+                var SectionStatus = finishedEO.SectionStatus;
+                for (var index = 0; index < SectionStatus.length; index++) {
+                    for (var i = 0; i < surveySections.length; i++) {
+                        if (surveySections[i].question_section_id == SectionStatus[index].SectionID) {
+                            surveySections[i].question_section_isdone = SectionStatus[index].IsDone;
+                        }
+                    }
+                }
+                window.localStorage.individualSurveySectionStatus = '{"individualSurveySectionStatus":' + JSON.stringify(surveySections) + '}';
+                individualSurveySectionStatus = surveySections;
+            }
+            for (var i = 0; i < surveySections.length; i++) {
+                //var IndividualSection = surveySections[i];
+                if (checkingCategory.id == surveySections[i].checking_category_id
+                    && surveySections[i].question_section_level <= checkingLevel.value) {
+                    index += 1;
+                    var checkingCategoryId = surveySections[i].checking_category_id;
+                    var questionSectionLevel = surveySections[i].question_section_level;
+                    var questionSectionText = surveySections[i].question_section_text;
+
+                    //Finished[Finished.length] = { EONumber: active_employee.EOID, SectionStatus: []};
+                    if (!isFinished) {
+                        var sectionStatus = { SectionID: surveySections[i].question_section_id, IsDone: "0" };
+                        finishedEO.SectionStatus.push(sectionStatus);
+                    }
+					
+                    var imgHTML = GetSectionImage(surveySections[i]);
+                    var section_style_display = GetSectionStyle_Display(surveySections[i]);
+                    if (section_style_display == 'style="display: block"') {
+                        sectionIndex += 1;
+                    }
+                    var clickHandler = "javascript:section_onclick(" + surveySections[i].question_section_id + ");";
+                    var divInnerHTML = '<div class="btn_cont" ' + section_style_display + '>';
+                    divInnerHTML += '<label>' + sectionIndex + '.</label>';
+                    divInnerHTML += '<button class="cisco_btn_long" ontouchstart="' + clickHandler + '">' + questionSectionText + "</button>";
+                    divInnerHTML += imgHTML;
+                    divInnerHTML += '<div class="clear"></div></div>';
+                    innerHTML += divInnerHTML;
+                }
+            }
+            if (!isFinished) {
+                var finishedEOs = JSON.parse(window.localStorage.finishedEO);				
+                for (var i = 0; i < finishedEOs.length; i++) {
+                    if (finishedEOs[i].EONumber == finishedEO.EONumber) {
+                        finishedEOs[i] = finishedEO;
+                        window.localStorage.finishedEO = JSON.stringify(finishedEOs);
+                        break;
+                    }
+                }
+            }
+            return innerHTML;
+        }
+		
+		function GetIntervieweeInnerHTML(surveySections) {
+			var innerHTML = ""; var index = 0; var sectionIndex = 0;
+			for (var i = 0; i < surveySections.length; i++) {
+                //var IndividualSection = surveySections[i];
+                if (checkingCategory.id == surveySections[i].checking_category_id
+                    && surveySections[i].question_section_level <= checkingLevel.value) {
+                    index += 1;
+                    var checkingCategoryId = surveySections[i].checking_category_id;
+                    var questionSectionLevel = surveySections[i].question_section_level;
+                    var questionSectionText = surveySections[i].question_section_text;				
+                    var imgHTML = GetSectionImage(surveySections[i]);
+                    var section_style_display = GetSectionStyle_Display(surveySections[i]);
+                    if (section_style_display == 'style="display: block"') {
+                        sectionIndex += 1;
+                    }
+                    var clickHandler = "javascript:section_onclick(" + surveySections[i].question_section_id + ");";
+                    var divInnerHTML = '<div class="btn_cont" ' + section_style_display + '>';
+                    divInnerHTML += '<label>' + sectionIndex + '.</label>';
+                    divInnerHTML += '<button class="cisco_btn_long" ontouchstart="' + clickHandler + '">' + questionSectionText + "</button>";
+                    divInnerHTML += imgHTML;
+                    divInnerHTML += '<div class="clear"></div></div>';
+                    innerHTML += divInnerHTML;
+                }
+            }
+			return innerHTML;
+		}
+   </script>
+    <script type="text/javascript" charset="utf-8">
+        function LoadIndividualSurveySections() {
+            //Initalizer navInformation
+            var navInnerHTML = GetNavInnerHTML(checkingCategory, checkingLevel);
+            document.getElementById("navInformation").innerHTML = navInnerHTML;
+            //Initalizer Individual survey question sections
+            var IndividualSectionInnerHTML = GetSectionInnerHTML(individualSurveySections);
+            document.getElementById("QuestionSection").innerHTML = IndividualSectionInnerHTML;
+        }
+		
+		function LoadIntervieweeSurveySections() {
+            //Initalizer navInformation
+            var navInnerHTML = GetNavInnerHTML(checkingCategory, checkingLevel);
+            document.getElementById("navInformation").innerHTML = navInnerHTML;
+			
+            //Initalizer Individual survey question sections
+            var IntervieweeSectionInnerHTML = GetIntervieweeInnerHTML(individualSurveySections);
+            document.getElementById("QuestionSection").innerHTML = IntervieweeSectionInnerHTML;
+        }
+		
+
+        function nextButton_onclick() {
+            //Is interviewee individual survery data information
+            if (checkingCategory.value == "URA Premises" || checkingCategory.value == "STB - Hotel") {
+                var confirmCallback = function (buttonIndex) {
+                    if (buttonIndex == 1) {//button OK
+
+                        window.location.href = 'PhotosAndSummary.html';
+                        return;
+                    }
+                    else {//button "Cancel"
+                        return;
+                    }
+                }
+                sConfirm("Are you sure to submit the interviewee individual information?", confirmCallback);
+            }
+            //Is EO individual survery data information
+            checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+            individualSurveySectionStatus = window.localStorage.getItem("individualSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus : null;
+            if (individualSurveySectionStatus == null || individualSurveySectionStatus.length == 0) {
+                sAlert("There is no data to upload.");
+                window.location.href = "PhotosAndSummary.html";
+                return;
+            }
+            individualSurveyResult = window.localStorage.getItem("individualSurveyResult") ? JSON.parse(window.localStorage.getItem("individualSurveyResult")).individualSurveyResult : null;
+            if (individualSurveyResult == null || individualSurveyResult.length == 0) {
+                sAlert("Every question section should be done!");
+                return;
+            }
+            var isDone = true;
+            for (var i = 0; i < individualSurveySectionStatus.length; i++) {
+                if (individualSurveySectionStatus[i].question_section_isdone.toString() == "0"
+                    && individualSurveySectionStatus[i].question_section_display.toString() == "block") {
+                    isDone = false;
+                    break;
+                }
+            }
+            if (!isDone) {
+                sAlert("Every question section should be done!");
+                return;
+            }
+            var user_token = login_user.token;
+            var sumarry_id = window.localStorage.getItem("sumarry_id") ? window.localStorage.getItem("sumarry_id") : null;
+            var Upload_individualSurveyResult = '{"request_id":"upload_individual_survey","token":"' + user_token + '","IndividualSurveyResult":' + JSON.stringify(individualSurveyResult) + '}';
+
+
+            active_eo = window.localStorage.getItem("EOentry") ? JSON.parse(window.localStorage.getItem("EOentry")) : null;
+            var active_user_id = active_eo.EONumber;
+
+            //FileWrite: function (filePath, fileContent, false, onWriteEnd, onError, useCapture)
+            var filePath = "SurveyData/Upload_IndividualSurveyResult_" + sumarry_id + "_" + random_number + "_" + active_user_id + ".txt";
+            var fileContent = Upload_individualSurveyResult;
+            var onWriteEnd = function () {
+                window.localStorage.individualSurveyResult = Upload_individualSurveyResult;
+
+                var active_eo = JSON.parse(window.localStorage.getItem("EOentry"));
+                var employeeList = JSON.parse(window.localStorage.getItem("employeeList"));
+                active_eo.FilePath = filePath;
+                for (var iIndex = 0; iIndex < employeeList.length; iIndex++) {
+                    if (employeeList[iIndex].EOID == active_eo.EOID) {
+                        employeeList[iIndex].FilePath = filePath;
+                        window.localStorage.employeeList = JSON.stringify(employeeList);
+                        break;
+                    }
+                }
+                window.location.href = 'ActiveEOList.html';
+            }
+            var onError = function () {
+                //TODO 
+                sAlert("save individual survery data failed.");
+            }
+            var useCapture = true;
+            FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+
+        }
+
+        function getFinishedEO() {
+            //Finished[Finished.length] = { EONumber: active_employee.EOID, SectionStatus: []};
+            //window.localStorage.finishedEO = JSON.stringify(Finished);
+            var eo = null;
+            var finishedEOs = window.localStorage.getItem("finishedEO") ? JSON.parse(window.localStorage.getItem("finishedEO")) : null;
+            for (var i = 0; i < finishedEOs.length; i++) {
+                if (finishedEOs[i].EONumber == active_eo.EOID) {
+                    eo = finishedEOs[i];
+                    break;
+                }
+            }
+            return eo;
+        }
+        
+		document.addEventListener("deviceready", function () {
+            login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+            checkingCategory = window.localStorage.getItem("checkingCategory") ? JSON.parse(window.localStorage.getItem("checkingCategory")) : null;
+            checkingLevel = window.localStorage.getItem("checkingLevel") ? JSON.parse(window.localStorage.getItem("checkingLevel")) : null;
+            checkingSector = window.localStorage.getItem("checkingSector") ? JSON.parse(window.localStorage.getItem("checkingSector")) : null;
+            checkingAddress = window.localStorage.getItem("checkingAddress") ? JSON.parse(window.localStorage.getItem("checkingAddress")) : null;
+			
+			sumarry_id = window.localStorage.getItem("sumarry_id");
+			sumarry_date = window.localStorage.getItem("sumarry_date");
+			random_number = window.localStorage.getItem("random_number");
+			
+            active_eo = window.localStorage.getItem("EOentry") ? JSON.parse(window.localStorage.getItem("EOentry")) : null;
+			active_interviewee = window.localStorage.getItem("active_interviewee") ? JSON.parse(window.localStorage.getItem("active_interviewee")) : null;
+		
+			individualSurveySections = window.localStorage.getItem("individualSurveySections") ? JSON.parse(window.localStorage.getItem("individualSurveySections")).individualSurveySections : null;
+			individualSurveySectionStatus = window.localStorage.getItem("individualSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus : null;
+			//individualSurveyResult = window.localStorage.getItem("individualSurveyResult") ? JSON.parse(window.localStorage.getItem("individualSurveyResult")).individualSurveyResult : null;
+			
+			if(active_eo != null && active_eo != "" && active_eo != "null") {
+				//get finished eo: this eo is allready exits.
+				finishedEO = getFinishedEO();
+				LoadIndividualSurveySections();
+			}
+			else {//interviewee survey data..
+				LoadIntervieweeSurveySections();
+			}
+            
+        }, true);
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img src="images/Login_logo.png" class="top_logo" alt="" />
+            <input type="button" class="btn_next" onclick="javascript:nextButton_onclick();">
+        </div>
+        <div class="main_title">
+            Individual Survey
+        </div>
+        <div class="nav_cont">
+            <div class="nav" id="navInformation">
+            </div>
+            <!--<div class="record">Recorded SC/PO: 2</div>-->
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <!-- 内容列表 -->
+            <ul>
+                <li id="QuestionSection"></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

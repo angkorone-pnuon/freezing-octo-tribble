@@ -1,0 +1,677 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Main Page</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <link type="text/css" rel="stylesheet" href="css/common.css" />
+    <script type="text/javascript" src="script/md5.js"></script>
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/LocalStorageOperation.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript" charset="utf-8">
+        //This page will Initalizer the localStorage
+        //JSON object type,format string: {"id":"1","value":"text"}
+        //window.localStorage.categoryList
+        //window.localStorage.checkingCategory
+        //window.localStorage.checkingLevel
+        //window.localStorage.checkingSector
+        //window.localStorage.checkingAddress
+
+        //JSON object type,format string: QuestionSection from the file QuestionSection.txt
+        //window.localStorage.onsiteSurveySections
+        //window.localStorage.individualSurveySections
+        //JSON object type,format string: {"question_section_id":"1","question_section_isdone":"0","question_section_flag_no":"0"}
+        //window.localStorage.onsiteSurveySectionStatus
+        //window.localStorage.individualSurveySectionStatus
+
+        //window.localStorage.sumarry_id
+        //window.localStorage.sumarry_date
+
+        //get the login user information (is JSON object type)
+        //Initalizer by index.html
+        var login_user;
+        var random_number;
+        var all_checking_category;
+        var all_checking_level;
+        var all_sector;
+        var all_site;
+
+        /* ****************************************************************************************************************************************
+        load page contorls
+        **************************************************************************************************************************************** */
+        function LoadCatrgory(categoryInfo) {
+            //Clear all dropdown list options
+            var selectCategory = document.getElementById("selectCategory");
+            selectCategory.options.length = 0;
+            window.localStorage.checkingCategory = null;
+            if (categoryInfo != null && categoryInfo != '' && JSON.parse(categoryInfo).response_id == 1) {
+                var userType = login_user.user_info.user_type.toString();
+                var Categroys = JSON.parse(categoryInfo).CheckingCategroy;
+                window.localStorage.categoryList = JSON.stringify(Categroys);
+                for (var i = 0; i < Categroys.length; i++) {
+                    if (userType.indexOf(Categroys[i].department_id.toString()) != -1) {
+                        var categoryOption = new Option(Categroys[i].category_name, Categroys[i].checking_categroyid);
+                        selectCategory.options.add(categoryOption);
+                    }
+                }
+                //function sortSelect return JSON Object: JSON.parse('{"id":"1","value":"text1"}');
+                var defaultCategory = sortSelect(selectCategory);
+                ResetCheckingCategory(defaultCategory.id, defaultCategory.value);
+                checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+                //Load select level options
+                all_checking_level = window.localStorage.getItem("all_checking_level");
+                LoadLevel(all_checking_level);
+            }
+            else {
+                //sAlert("There is no categorys in this app version! Please contact the administrator.");
+                sAlert("There is no categorys in this app version! Please contact the administrator.");
+                var selectLevel = document.getElementById("selectLevel");
+                selectLevel.options.length = 0;
+                var selectSector = document.getElementById("selectSector");
+                selectSector.options.length = 0;
+                var selectAddress = document.getElementById("selectAddress");
+                selectAddress.options.length = 0;
+            }
+        }
+        function ResetCheckingCategory(id, value) {
+            var scoring_type; var bench_mark;
+            var categoryList = JSON.parse(window.localStorage.getItem("categoryList"));
+            for (var i = 0; i < categoryList.length; i++) {
+                if (categoryList[i].checking_categroyid == id) {
+                    scoring_type = categoryList[i].scoring_calculation_type;
+                    bench_mark = categoryList[i].compliance_benchmark;
+                    break;
+                }
+            }
+            window.localStorage.checkingCategory = '{"id":"' + id + '","value":"' + value + '","scoring_calculation_type":"' + scoring_type + '","compliance_benchmark":"' + bench_mark + '"}';
+            var checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+        }
+
+        function LoadLevel(levelInfo) {
+            var selectLevel = document.getElementById("selectLevel");
+            selectLevel.options.length = 0;
+            window.localStorage.checkingLevel = null;
+
+            var checkingCategory = window.localStorage.getItem("checkingCategory") ? JSON.parse(window.localStorage.getItem("checkingCategory")) : null;
+            if (checkingCategory != null && levelInfo != null && levelInfo != ''
+				&& JSON.parse(levelInfo).response_id == 1) {
+                var Levels = JSON.parse(levelInfo).CheckingLevel;
+                for (var i = 0; i < Levels.length; i++) {
+                    if (Levels[i].checking_categroyid == checkingCategory.id) {
+                        var levelOption = new Option(Levels[i].checking_level_name, Levels[i].checking_levelid);
+                        selectLevel.options.add(levelOption);
+                    }
+                }
+            }
+            if (selectLevel.options.length == 0) {
+                //sAlert("There is no levels in this app version! Please contact the administrator.");
+                sAlert("There is no levels in this app version! Please contact the administrator.");
+
+                var selectSector = document.getElementById("selectSector");
+                selectSector.options.length = 0;
+                var selectAddress = document.getElementById("selectAddress");
+                selectAddress.options.length = 0;
+                return;
+            }
+            //function sortSelect return JSON Object: JSON.parse('{"id":"1","value":"text1"}');
+            var defaultLevel = sortSelect(selectLevel);
+            window.localStorage.checkingLevel = JSON.stringify(defaultLevel);
+            //Load select sector options 
+            all_sector = window.localStorage.getItem("all_sector");
+            LoadSector(all_sector);
+        }
+        function LoadSector(sectorInfo) {
+            var selectSector = document.getElementById("selectSector");
+            selectSector.options.length = 0;
+            window.localStorage.checkingSector = null;
+
+            var checkingLevel = window.localStorage.getItem("checkingLevel") ? JSON.parse(window.localStorage.getItem("checkingLevel")) : null;
+            if (checkingLevel != null && sectorInfo != null && sectorInfo != ''
+				&& JSON.parse(sectorInfo).response_id == 1) {
+                var Sectors = JSON.parse(sectorInfo).Sector;
+                for (var i = 0; i < Sectors.length; i++) {
+                    if (Sectors[i].sector_max_level >= checkingLevel.value) {
+                        var sectorOption = new Option(Sectors[i].sector_name, Sectors[i].sector_id);
+                        selectSector.options.add(sectorOption);
+                    }
+                }
+            }
+            if (selectSector.options.length == 0) {
+                //sAlert("There is no sectors in this app version! Please contact the administrator.");
+                sAlert("There is no sectors in this app version! Please contact the administrator.");
+                var selectAddress = document.getElementById("selectAddress");
+                selectAddress.options.length = 0;
+                return;
+            }
+            var checkingSector = sortSelect(selectSector);
+            window.localStorage.checkingSector = JSON.stringify(checkingSector);
+            //Load select site options
+            all_site = window.localStorage.getItem("all_site");
+            LoadAddress(all_site);
+        }
+        function LoadAddress(siteInfo) {
+            var selectAddress = document.getElementById("selectAddress");
+            selectAddress.options.length = 0;
+            window.localStorage.checkingAddress = null;
+
+            var checkingSector = window.localStorage.getItem("checkingSector") ? JSON.parse(window.localStorage.getItem("checkingSector")) : null;
+            if (checkingSector != null && siteInfo != null && siteInfo != ''
+				&& JSON.parse(siteInfo).response_id == 1) {
+                var Sites = JSON.parse(siteInfo).Site;
+                for (var i = 0; i < Sites.length; i++) {
+                    if (Sites[i].sector_id == checkingSector.id) {
+                        var addressOption = new Option(Sites[i].site_address, Sites[i].site_id);
+                        selectAddress.options.add(addressOption);
+                    }
+                }
+            }
+            else {
+                //sAlert("There is no sectors in this app version! Please contact the administrator.");
+                sAlert("There is no sectors in this app version! Please contact the administrator.");
+                return;
+            }
+
+            var checkingAddress = null;
+            if (selectAddress.options.length == 0) {
+                var addressOption = new Option("N/A", "0");
+                selectAddress.options.add(addressOption);
+                checkingAddress = sortSelect(selectAddress);
+            }
+            else {
+                checkingAddress = sortSelect(selectAddress);
+                var addressOption = new Option("N/A", "0");
+                selectAddress.options.add(addressOption);
+            }
+            window.localStorage.checkingAddress = JSON.stringify(checkingAddress);
+            var txtaAddress = document.getElementById("txtaAddress");
+            txtaAddress.style.display = (checkingAddress != null && checkingAddress.value == "N/A") ? "block" : "none";
+        }
+
+        $(function () {
+            LocalStorageOperation.clearLocalStorage_MainPage();
+            login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+            random_number = GetRandomString(6);
+            window.localStorage.random_number = random_number;
+
+            all_checking_category = window.localStorage.getItem("all_checking_category");
+            LoadCatrgory(all_checking_category);
+        });
+    </script>
+    <script type="text/javascript" charset="utf-8">
+        /* ****************************************************************************************************************************************
+        select onchange event
+        **************************************************************************************************************************************** */
+        function CatrgoryOnChange(obj) {
+            if (obj.value != '') {
+                ResetCheckingCategory(obj.options[obj.selectedIndex].value, obj.options[obj.selectedIndex].text);
+                all_checking_level = window.localStorage.getItem("all_checking_level");
+                LoadLevel(all_checking_level);
+            }
+        }
+        function LevelOnChange(obj) {
+            if (obj.value != '') {
+                var checkingLevel = JSON.parse('{"id":"' + obj.options[obj.selectedIndex].value + '","value":"' + obj.options[obj.selectedIndex].text + '"}');
+                window.localStorage.checkingLevel = JSON.stringify(checkingLevel);
+                all_sector = window.localStorage.getItem("all_sector");
+                LoadSector(all_sector);
+            }
+        }
+        function SectorOnChange(obj) {
+            if (obj.options[obj.selectedIndex].value != '') {
+                var checkingSector = JSON.parse('{"id":"' + obj.options[obj.selectedIndex].value + '","value":"' + obj.options[obj.selectedIndex].text + '"}');
+                window.localStorage.checkingSector = JSON.stringify(checkingSector);
+                all_site = window.localStorage.getItem("all_site");
+                LoadAddress(all_site);
+            }
+        }
+        function AddressOnChange(obj) {
+            if (obj.options[obj.selectedIndex].value != '') {
+                var txtaAddress = document.getElementById("txtaAddress");
+                txtaAddress.style.display = obj.options[obj.selectedIndex].text == "N/A" ? "block" : "none";
+                txtaAddress.value = "Please input address...";
+                var checkingAddress = JSON.parse('{"id":"' + obj.options[obj.selectedIndex].value + '","value":"' + obj.options[obj.selectedIndex].text + '"}');
+                window.localStorage.checkingAddress = JSON.stringify(checkingAddress);
+            }
+        }
+
+        function txtaAddress_onfocus() {
+            var txtaAddress = document.getElementById("txtaAddress");
+            if (txtaAddress.value == "Please input address...") {
+                txtaAddress.value = "";
+            }
+        }
+        function txtaAddress_onblur() {
+            var txtaAddress = document.getElementById("txtaAddress");
+            if ($.trim(txtaAddress.value) == "") {
+                txtaAddress.value = "Please input address...";
+            }
+        }
+
+        function AddSiteAddress() {
+            window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function (fileSystem) {
+                fileSystem.root.getFile("SurveyData/Upload_Site.txt", { create: false, exclusive: false }, OverWriteUpload_Site, WriteUpload_Site);
+            }, false);
+        }
+        function WriteUpload_Site() {
+            var guid = NewGuid();
+            var checkingSector = JSON.parse(window.localStorage.getItem("checkingSector"));
+            var checkingAddress = JSON.parse(window.localStorage.getItem("checkingAddress"));
+            checkingAddress.id = guid;
+            window.localStorage.checkingAddress = JSON.stringify(checkingAddress);
+
+            //FileWrite: function (filePath, fileContent, appended, onWriteEnd, onError, useCapture)
+            var filePath = "SurveyData/Upload_Site.txt";
+            var fileContent = '{"request_id":"upload_site","token":"","Site":[{"SectorID":"' + checkingSector.id + '","SiteID":"' + guid + '","SiteAddress":"' + checkingAddress.value + '"}]}';
+            var onWriteEnd = function () {
+                //TODO ...
+            }
+            var onError = function () {
+                //TODO ...
+                sAlert("Write site file failed.");
+            }
+            var useCapture = true;
+            FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+        }
+        function OverWriteUpload_Site() {
+            //ReadFileAsText: function (filePath, onLoadEnd, onError, useCapture) 
+            var filePath = "SurveyData/Upload_Site.txt";
+            var onLoadEnd = function (evt) {
+                OverWriteUpload_SiteHandler(evt);
+            }
+            var onError = function () {
+                //TODO ...
+                sAlert("Read site sa text failed.");
+            }
+            var useCapture = true;
+            FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+        }
+        function OverWriteUpload_SiteHandler(evt) {
+            var readText = evt.target.result;
+            var uploadSite = JSON.parse(readText);
+
+            var checkingSector = JSON.parse(window.localStorage.getItem("checkingSector"));
+            var checkingAddress = JSON.parse(window.localStorage.getItem("checkingAddress"));
+
+            var isExits = false;
+            for (var i = 0; i < uploadSite.Site.length; i++) {
+                if (uploadSite.Site[i].SectorID == checkingSector.id
+                    && uploadSite.Site[i].SiteAddress == $.trim(checkingAddress.value)) {
+                    checkingAddress.id = uploadSite.Site[i].SiteID;
+                    window.localStorage.checkingAddress = JSON.stringify(checkingAddress);
+                    isExits = true;
+                    break;
+                }
+            }
+            if (!isExits) {
+                var guid = NewGuid();
+                checkingAddress.id = guid;
+                window.localStorage.checkingAddress = JSON.stringify(checkingAddress);
+                if ($.trim(readText) != "" && JSON.parse(readText).request_id == "upload_site") {
+                    var new_site = JSON.parse('{"SectorID":"' + checkingSector.id + '","SiteID":"' + guid + '","SiteAddress":"' + $.trim(checkingAddress.value) + '"}');
+                    uploadSite.Site.push(new_site);
+                    //FileWrite: function (filePath, fileContent, appended, onWriteEnd, onError, useCapture)
+                    var filePath = "SurveyData/Upload_Site.txt";
+                    var fileContent = JSON.stringify(uploadSite);
+                    var onWriteEnd = function () {
+                        //TODO ...
+                    }
+                    var onError = function () {
+                        //TODO ...
+                        sAlert("Write site file failed.");
+                    }
+                    var useCapture = true;
+                    FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+
+                }
+                else {
+                    WriteUpload_Site();
+                }
+            }
+        }
+
+        /* **************************************************************************************************************************************
+        get question sections by the checking category and checking level 
+        ************************************************************************************************************************************** */
+
+        var getSectionsFailed = null;
+        var getQuestionsFailed = null;
+        var readQuestionInfoFailed = false;
+
+        function StartOnClick() {
+            var checkingCategory = null;
+            if (window.localStorage.getItem("checkingCategory")) {
+                checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+            }
+            var checkingLevel = null;
+            if (window.localStorage.getItem("checkingLevel")) {
+                checkingLevel = JSON.parse(window.localStorage.getItem("checkingLevel"));
+            }
+            var checkingSector = null;
+            if (window.localStorage.getItem("checkingSector")) {
+                checkingSector = JSON.parse(window.localStorage.getItem("checkingSector"));
+            }
+            var checkingAddress = null;
+            if (window.localStorage.getItem("checkingAddress")) {
+                checkingAddress = JSON.parse(window.localStorage.getItem("checkingAddress"));
+            }
+            if (checkingCategory == null || checkingLevel == null || checkingSector == null || checkingAddress == null) {
+                sAlert("Every selection should be selected.");
+                return;
+            }
+            if (checkingAddress.value == "N/A") {
+                var txtaAddress = document.getElementById("txtaAddress");
+                if ($.trim(txtaAddress.value) == null || $.trim(txtaAddress.value) == "" || $.trim(txtaAddress.value) == "Please input address...") {
+                    sAlert("Please input the address information.");
+                    return;
+                }
+                checkingAddress.value = $.trim(txtaAddress.value);
+                window.localStorage.checkingAddress = JSON.stringify(checkingAddress);
+            }
+            //get new sumarryId :hex_md5("SC/PO#1#North Sector#21 Mount Elizabeth#20130113");
+            var sumarryDate = (new Date()).Format("MM/dd/yyyy");
+            var sumarryId = encodeURI(login_user.user_info.user_loginid + "#" + checkingCategory.value + "#" + checkingLevel.value + "#" + checkingSector.value + "#" + checkingAddress.value + "#" + sumarryDate);
+            window.localStorage.sumarry_id = hex_md5(sumarryId);
+            window.localStorage.sumarry_date = sumarryDate;
+            if (checkingAddress.id == 0) {
+                AddSiteAddress(); //add site address to local system
+            }
+
+            //get survery question section information
+            GetSurveyQuestionSection();
+            //get survery questions information
+            GetSurveyQuestions(checkingCategory.id);
+
+            var nSeconds_ReadFile = 0;
+            var iID_ReadFile = 0;
+            iID_ReadFile = setInterval(function () {
+                nSeconds_ReadFile += 1;
+                var ReadFilesEnded = GetQuestionsEnded && GetSectionEnded;
+                var ReadFilesFailed = GetQuestionFailed || GetSectionFailed;
+
+                if (ReadFilesEnded) {
+                    if (ReadFilesFailed) {
+                        //TODO ...
+                        nSeconds_ReadFile = 0;
+                        clearInterval(iID_ReadFile);
+                        sAlert("get question information failed.");
+                        return;
+                    }
+                    else {
+                        GotoNextPage();
+                        nSeconds_ReadFile = 0;
+                        clearInterval(iID_ReadFile);
+                        return;
+                    }
+                }
+                if (nSeconds_ReadFile >= 10) {//waitting 10's
+                    //TODO ...
+                    nSeconds_ReadFile = 0;
+                    clearInterval(iID_ReadFile);
+                    sAlert("get question information time out.");
+                    return;
+                }
+            }, 1000);
+        }
+
+        var GetQuestionsEnded = false;
+        var GetQuestionFailed = false;
+        function GetSurveyQuestions(category_id) {
+            //ReadFileAsText: function (filePath, onLoadEnd, onError, useCapture) 
+            var filePath = "DataSource/Question_" + category_id + ".txt";
+            var onLoadEnd = function (evt) {
+                var readText = evt.target.result;
+                if (JSON.parse(readText).response_id == '1') {
+                    window.localStorage.surveyQuestions = JSON.stringify(JSON.parse(readText).Question);
+                    GetQuestionsEnded = true;
+                    GetQuestionFailed = false;
+                }
+                else {
+                    GetQuestionsEnded = true;
+                    GetQuestionFailed = true;
+                    //sAlert("1、Get questions from file failed.");
+                }
+            }
+            var onError = function () {
+                //TODO ...
+                GetQuestionsEnded = true;
+                GetQuestionFailed = true;
+                //sAlert("2、Read questions file failed.");
+            }
+            var useCapture = true;
+            FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+        }
+
+        var GetSectionEnded = false;
+        var GetSectionFailed = false;
+        function GetSurveyQuestionSection() {
+            var filePath = "DataSource/QuestionSection.txt";
+            var onLoadEnd = function (evt) {
+                GetSurveySectionHandler(evt);
+            }
+            var onError = function () {
+                //TODO ...
+                GetSectionEnded = true;
+                GetSectionFailed = true;
+                //sAlert("1、Read question section file failed.");
+            }
+            var useCapture = true;
+            FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+        }
+        function GetSurveySectionHandler(evt) {
+            var readText = evt.target.result;
+            if (readText == '') {
+                GetSectionEnded = true;
+                GetSectionFailed = true;
+                //sAlert("1、Read question section file failed.");
+                return;
+            }
+            if (JSON.parse(readText).response_id != '1') {
+                GetSectionEnded = true;
+                GetSectionFailed = true;
+                //sAlert("2、Read question section file failed.");
+                return;
+            }
+            var checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+            var checkingLevel = JSON.parse(window.localStorage.getItem("checkingLevel"));
+            var questionSection = JSON.parse(readText);
+
+            var onsiteSurveySections = "";
+            var onsiteSurveySectionStatus = "";
+            var individualSurveySections = "";
+            var individualSurveySectionStatus = "";
+            var surveySections = questionSection.QuestionSection;
+            var onsiteIndex = 0; var individualIndex = 0;
+
+            for (var i = 0; i < surveySections.length; i++) {
+                var section = surveySections[i];
+                if (section.checking_category_id == checkingCategory.id
+                    && section.question_section_level <= checkingLevel.value) {
+                    switch (section.question_section_for_site_or_individual) {
+                        case "0":
+                            var onsiteStatus = '{"question_section_id":"' + section.question_section_id + '","question_section_isdone":"0","question_section_flag_no":"0","question_section_display":"none"}';
+                            onsiteIndex += 1;
+                            if (onsiteIndex == 1) {
+                                onsiteSurveySections = JSON.stringify(section);
+                                onsiteSurveySectionStatus = onsiteStatus;
+                            }
+                            else {
+                                onsiteSurveySections += "," + JSON.stringify(section);
+                                onsiteSurveySectionStatus += "," + onsiteStatus;
+                            }
+                            break;
+                        case "1":
+                            var individualStatus = '{"question_section_id":"' + section.question_section_id + '","question_section_isdone":"0","question_section_flag_no":"0","question_section_display":"none","question_section_morf":"' + section.question_section_morf + '"}';
+                            individualIndex += 1;
+                            if (individualIndex == 1) {
+                                individualSurveySections = JSON.stringify(section);
+                                individualSurveySectionStatus = individualStatus;
+                            }
+                            else {
+                                individualSurveySections += "," + JSON.stringify(section);
+                                individualSurveySectionStatus += "," + individualStatus;
+                            }
+                            break;
+                        default:
+                            sAlert("Error: Unknow question_section_for_site_or_individual " + section.question_section_for_site_or_individual);
+                            break;
+                    }
+                }
+
+            }
+
+            window.localStorage.onsiteSurveySections = '{"onsiteSurveySections":[' + onsiteSurveySections + ']}';
+            window.localStorage.onsiteSurveySectionStatus = '{"onsiteSurveySectionStatus":[' + onsiteSurveySectionStatus + ']}';
+            window.localStorage.individualSurveySections = '{"individualSurveySections":[' + individualSurveySections + ']}';
+            window.localStorage.individualSurveySectionStatus = '{"individualSurveySectionStatus":[' + individualSurveySectionStatus + ']}';
+
+            GetSectionEnded = true;
+
+            //begin add by matallic.guo
+            var PhotosAndSummarySections = [];
+            var Photos = { item: "Photos", section_isdone: "0", url: "Photos.html" };
+            var Sketch = { item: "Sketch", section_isdone: "0", url: "Sketch.html" };
+            var Summary = { item: "Summary", section_isdone: "0", url: "Summary.html" };
+            PhotosAndSummarySections[PhotosAndSummarySections.length] = Photos;
+            PhotosAndSummarySections[PhotosAndSummarySections.length] = Sketch;
+            PhotosAndSummarySections[PhotosAndSummarySections.length] = Summary;
+            window.localStorage.onsitePhotosAndSummarySections = JSON.stringify(PhotosAndSummarySections);
+            //end add by matallic.guo            
+        }
+
+        function GotoNextPage() {
+            var checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+            var onsiteSections = 0; var individualSections = 0; var allQuestions = 0;
+
+            var _onsiteSections = window.localStorage.onsiteSurveySections;
+            var _individualSections = window.localStorage.individualSurveySections;
+            var _allQuestions = window.localStorage.surveyQuestions;
+
+            var getOnsiteSections = _onsiteSections != null && _onsiteSections != "null";
+            var getIndividualSections = _individualSections != null && _individualSections != "null";
+            var getAllQuestions = _allQuestions != null && _allQuestions != "null";
+
+            if (getOnsiteSections) {
+                onsiteSections = JSON.parse(_onsiteSections).onsiteSurveySections.length;
+            }
+            if (getIndividualSections) {
+                individualSections = JSON.parse(_individualSections).individualSurveySections.length;
+            }
+            if (getAllQuestions) {
+                allQuestions = JSON.parse(_allQuestions).length;
+            }
+            if (checkingCategory.value == "URA Premises" || checkingCategory.value == "STB - Hotel") {
+                if (individualSections == 0) {
+                    sAlert("There have no section in this category.");
+                    return;
+                }
+                //FileWrite: function (filePath, fileContent, appended, onWriteEnd, onError, useCapture)
+                var filePath = "SurveyData/Upload_OnSiteSurveyResult_" + window.localStorage.sumarry_id + "_" + random_number + ".txt";
+                var fileContent = "upload onsite survey data: null.";
+                var onWriteEnd = function () {
+                    window.location.href = 'IndividualSurvey.html';
+                }
+                var onError = function () {
+                    //TODO ...
+                    sAlert("Write onsite survery data failed.");
+                }
+                var useCapture = true;
+                FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+            }
+            else {
+                if (onsiteSections != 0) {
+                    window.location.href = 'OnSiteSurvey.html';
+                }
+                else if (individualSections != 0) {
+                    window.location.href = 'ActiveEOList.html';
+                }
+                else {
+                    sAlert("There have no section in this category.");
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img src="images/Login_logo.png" class="top_logo" alt="" />
+            <input type="button" class="btn_logout" onclick="javascript:window.location.href='index.html';">
+        </div>
+        <div class="main_title">
+            Main Page
+        </div>
+        <div class="nav_cont">
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <ul>
+                <li>
+                    <div class="select_cont">
+                        <table style="width: 100%; border: 0px">
+                            <tr>
+                                <td class="select_title">
+                                    You are checking on:
+                                </td>
+                                <td class="select_box">
+                                    <select id="selectCategory" class="cisco_select" onchange="javascript:CatrgoryOnChange(this);">
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="select_title">
+                                    Select Level of Check:
+                                </td>
+                                <td class="select_box">
+                                    <select id="selectLevel" class="cisco_select" onchange="javascript:LevelOnChange(this);">
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="select_title">
+                                    Sector:
+                                </td>
+                                <td class="select_box">
+                                    <select id="selectSector" class="cisco_select" onchange="javascript:SectorOnChange(this);">
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="select_title">
+                                    Address:
+                                </td>
+                                <td class="select_box">
+                                    <select id="selectAddress" class="cisco_select" onchange="javascript:AddressOnChange(this);">
+                                    </select>
+                                    <textarea class="cisco_textarea" cols="40" rows="3" id="txtaAddress" onfocus="javascript:txtaAddress_onfocus();"
+                                        onblur="javascript:txtaAddress_onblur();">Please input address...</textarea>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td id="select_btn" colspan="2">
+                                    <!--<button class="cisco_btn" onclick="javascript:StartOnClick();">
+                                        Start</button>-->
+                                    <button class="cisco_btn" ontouchstart="javascript:StartOnClick();">
+                                        Start</button>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

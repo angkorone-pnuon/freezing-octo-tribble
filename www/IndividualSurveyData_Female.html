@@ -1,0 +1,645 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Individual Survey</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <script type="text/javascript">
+        var login_user;
+        var checkingCategory;
+        var checkingLevel;
+        var checkingSector;
+        var checkingAddress;
+
+        var sumarry_id;
+        var sumarry_date;
+        var random_number;
+        var sectionId;
+        var active_eo;
+        var finishedEO;
+
+        var individualSurveyResult;
+        var individualSurveySections;
+        var individualSurveySectionStatus;
+		var sectionIsDone;
+        var questionRelationship = new Array();
+
+        function GetQuestionRelationship(questions) {
+            var result = new Array();
+            for (var i = 0; i < questions.length; i++) {
+                var question = questions[i];
+                if (question == null || question.question_dependency == "" || question.question_dependency == "0") {
+                    continue;
+                }
+                var dependencyParent = question.question_dependency.split('#');
+                for (var ii = 0; ii < dependencyParent.length; ii++) {
+                    var parentId = dependencyParent[ii];
+                    var childId = question.question_id;
+                    var relationship = { parent_question_id: parentId, child_question_id: childId, parent_yes: 0 };
+                    result.push(relationship);
+                }
+            }
+            return result;
+        }
+
+        function UpdateQuestionRelationship(parent_question_id, type) {
+            for (var i = 0; i < questionRelationship.length; i++) {
+                var relationship = questionRelationship[i];
+                if (relationship.parent_question_id == parent_question_id) {
+                    var child_question_id = relationship.child_question_id;
+                    var divInnerId = "question_" + child_question_id + "_cont";
+                    if (type == "Yes") {
+                        relationship.parent_yes = 1;
+                        document.getElementById(divInnerId).style.display = "block";
+                    }
+                    else {
+                        relationship.parent_yes = 0;
+                        document.getElementById(divInnerId).style.display = "none";
+                    }
+                }
+            }
+        }
+
+        function GetNavInnerHTML() {
+            var innerHTML = '';
+            var individualSurveySections = JSON.parse(window.localStorage.getItem("individualSurveySections")).individualSurveySections;
+            for (var i = 0; i < individualSurveySections.length; i++) {
+                if (individualSurveySections[i].question_section_id == sectionId) {
+                    innerHTML = individualSurveySections[i].question_section_text;
+                    break;
+                }
+            }
+            return innerHTML;
+        }
+
+        function GetQuestionStyle_Display(question) {
+            if (question == null) {
+                return 'style="display: none;"';
+            }
+            if (question.question_dependency == "" || question.question_dependency == "0") {
+                return 'style="display: block;"';
+            }
+            individualSurveyResult = window.localStorage.getItem("individualSurveyResult") ? JSON.parse(window.localStorage.getItem("individualSurveyResult")) : null;
+            if (individualSurveyResult == null) {
+                return 'style="display: none;"';
+            }
+            var questionDisplay = 'style="display: none;"';
+            var dependencyParent = question.question_dependency.split('#');
+            for (var i = 0; i < dependencyParent.length; i++) {
+                for (var ii = 0; ii < individualSurveyResult.length; ii++) {
+                    if (individualSurveyResult[ii].QuestionID == dependencyParent[i]
+                        && individualSurveyResult[ii].IndividualSurveyAnswer == "Yes") {
+                        questionDisplay = 'style="display: block"'; break;
+                    }
+                }
+            }
+            return questionDisplay;
+        }
+
+        function GetQuestionInnerHTML_Radio(question, result) {
+            var questionId = question.question_id;
+            var answerType = question.question_answer_type.split('#'); //"Yes#No#N/A"
+
+            var surveyAnswer = result != null ? $.trim(result.IndividualSurveyAnswer) : "";
+            var surverRemark = result != null ? $.trim(result.Remark) : "";
+
+            var displayNo = ''; var radioInnerHTML = '';
+            for (var i = 0; i < answerType.length; i++) {
+                var buttonClick = "javascript:question_radio_onclick('" + answerType[i].toString() + "','" + questionId + "');";
+                switch (answerType[i].toString()) {
+                    case "Yes":
+                        var btnYes_Id = "btn_" + questionId + "_yes";
+                        if (surveyAnswer == "Yes") {
+                            radioInnerHTML += '<button class="btn_yes_hover" id="' + btnYes_Id + '" onclick="' + buttonClick + '"></button>';
+                        }
+                        else {
+                            radioInnerHTML += '<button class="btn_yes" id="' + btnYes_Id + '" onclick="' + buttonClick + '"></button>';
+                        }
+                        break;
+                    case "No":
+                        var btnNo_Id = "btn_" + questionId + "_no";
+                        var displayNo_Id = "display_" + questionId + "_area";
+                        var areaNo_Id = "question_" + questionId + "_area";
+
+                        if (surveyAnswer == "No") {
+                            radioInnerHTML += '<button class="btn_no_hover" id="' + btnNo_Id + '" onclick="' + buttonClick + '"></button>';
+                            displayNo = '<tr id="' + displayNo_Id + '"><td>&nbsp;</td><td class="question_area"><textarea cols="1" rows="3" class="cisco_textarea" id="' + areaNo_Id + '">' + surverRemark + '</textarea></td></tr>';
+                        }
+                        else {
+                            radioInnerHTML += '<button class="btn_no" id="' + btnNo_Id + '" onclick="' + buttonClick + '"></button>';
+                            if (displayNo == '') {
+                                displayNo = '<tr id="' + displayNo_Id + '"><td>&nbsp;</td><td class="question_area"><textarea cols="1" rows="3" class="cisco_textarea" style="display: none" id="' + areaNo_Id + '"></textarea></td></tr>';
+                            }
+                        }
+                        break;
+                    case "N/A":
+                        var btnNa_Id = "btn_" + questionId + "_na";
+                        var displayNa_Id = "display_" + questionId + "_area";
+                        var areaNa_Id = "question_" + questionId + "_area";
+                        if (surveyAnswer == "N/A") {
+                            radioInnerHTML += '<button class="btn_na_hover" id="' + btnNa_Id + '" onclick="' + buttonClick + '"></button>';
+                            displayNo = '<tr id="' + displayNa_Id + '"><td>&nbsp;</td><td class="question_area"><textarea cols="1" rows="3" class="cisco_textarea" id="' + areaNa_Id + '">' + surverRemark + '</textarea></td></tr>';
+                        }
+                        else {
+                            radioInnerHTML += '<button class="btn_na" id="' + btnNa_Id + '" onclick="' + buttonClick + '"></button>';
+                            if (displayNo == '') {
+                                displayNo = '<tr id="' + displayNa_Id + '"><td>&nbsp;</td><td class="question_area"><textarea cols="1" rows="3" class="cisco_textarea" style="display: none" id="' + areaNa_Id + '"></textarea></td></tr>';
+                            }
+                        }
+                        break;
+                }
+            }
+            var questionText = question.question_text;
+            var divInnerId = "question_" + questionId + "_cont";
+            var divQuestion_Style = GetQuestionStyle_Display(question);
+
+            var divInnerHTML = '';
+            divInnerHTML = '<div class="question_cont" id="' + divInnerId + '" ' + divQuestion_Style + '><table style="width: 100%; border:0px;">';
+            divInnerHTML += '<tr><td class="question_no">&nbsp;</td><td class="question_list">' + questionText + '</td></tr>';
+            divInnerHTML += '<tr><td>&nbsp;</td><td class="question_radio">' + radioInnerHTML + '</td></tr>';
+            divInnerHTML = displayNo != '' ? (divInnerHTML + displayNo + '</table></div>') : (divInnerHTML + '</table></div>');
+            return divInnerHTML;
+        }
+
+        function GetQuestionInnerHTML_Answer(question, result) {
+            var question_answer_Id = 'answer_' + question.question_id + '_cont';
+            var answerInnerHTML = '';
+            if (result != null && $.trim(result.IndividualSurveyAnswer) != "") {
+                answerInnerHTML = '<textarea cols="1" rows="3" class="cisco_textarea" id="' + question_answer_Id + '">' + $.trim(result.IndividualSurveyAnswer) + '</textarea>';
+            }
+            else {
+                answerInnerHTML = '<textarea cols="1" rows="3" class="cisco_textarea" id="' + question_answer_Id + '"></textarea>';
+            }
+
+            var divInnerId = "question_" + question.question_id + "_cont";
+            var divQuestion_Style = GetQuestionStyle_Display(question);
+
+            var questionText = question.question_text;
+            var divInnerHTML = '';
+            divInnerHTML = '<div class="question_cont" id="' + divInnerId + '" ' + divQuestion_Style + '><table style="width: 100%; border: 0px">';
+            divInnerHTML += '<tr><td class="question_no">&nbsp;</td><td class="question_list">' + questionText + '</td></tr>';
+            divInnerHTML += '<tr><td>&nbsp;</td><td class="question_area">' + answerInnerHTML + '</td></tr></table></div>';
+            return divInnerHTML;
+        }
+
+        function GetQuestionInnerHTML_Select(question, result) {
+            var questionId = question.question_id;
+            var questionText = question.question_text;
+
+            var divInnerId = "question_" + questionId + "_cont";
+            var question_select_Id = 'select_' + questionId + '_cont';
+            var select_onchange = "javascript:question_select_onchange('" + questionId + "');";
+
+            var selectInnerHTML = '<select class="cisco_select" id="' + question_select_Id + '"  onchange="' + select_onchange + '">';
+            var listValues = question.question_answer_type.split('#'); //"Yes#No#N/A"
+            for (var i = 0; i < listValues.length; i++) {
+
+                if (result != null && result.IndividualSurveyAnswer == listValues[i]) {
+                    selectInnerHTML += '<option selected="selected">' + listValues[i] + '</option>';
+                }
+                else {
+                    selectInnerHTML += '<option>' + listValues[i] + '</option>';
+                }
+            }
+            selectInnerHTML += '</select>';
+            var divQuestion_Style = GetQuestionStyle_Display(question);
+
+            var divInnerHTML = '';
+            divInnerHTML = '<div class="question_cont" id="' + divInnerId + '" ' + divQuestion_Style + '><table style="width: 100%; border: 0px">';
+            divInnerHTML += '<tr><td class="question_no">&nbsp;</td><td class="question_list">' + questionText + '</td></tr>';
+            divInnerHTML += '<tr><td>&nbsp;</td><td class="select_box">' + selectInnerHTML + '</td></tr></table></div>';
+            return divInnerHTML;
+        }
+
+        function GetQuestionInnerHTML(questions) {
+            individualSurveyResult = window.localStorage.getItem("individualSurveyResult") ? JSON.parse(window.localStorage.getItem("individualSurveyResult")).individualSurveyResult : null;
+            
+            var innerHTML = '';
+            for (var i = 0; i < questions.length; i++) {
+                if (questions[i].gender.toString() != "1") {
+                    //get the result information.
+                    var result = getQuestionResult(questions[i]);
+
+                    var question_inner_html = '';
+                    if (questions[i].question_answer_type.indexOf("Yes") > -1 || questions[i].question_answer_type.indexOf("No") > -1 || questions[i].question_answer_type.indexOf("N/A") > -1) {
+                        question_inner_html = GetQuestionInnerHTML_Radio(questions[i], result);
+                    }
+                    else if (questions[i].question_answer_type == "" || questions[i].question_answer_type == null) {
+                        question_inner_html = GetQuestionInnerHTML_Answer(questions[i], result);
+                    }
+                    else {
+                        question_inner_html = GetQuestionInnerHTML_Select(questions[i], result);
+                    }
+                    innerHTML += question_inner_html;
+                }
+            }
+            return innerHTML;
+        }
+
+        function getQuestionResult(question) {
+            var result = null;
+            if (individualSurveyResult == null) {
+                return null;
+            }
+            for (var i = 0; i < individualSurveyResult.length; i++) {
+                if (individualSurveyResult[i].QuestionID == question.question_id) {
+                    result = individualSurveyResult[i];
+                    break;
+                }
+            }
+            return result;
+        }
+
+        function getIndividualSurveyResultJSON(questions) { //add individualSurveyResult by question
+            var questionSurveyResult = "";
+            for (var i = 0; i < questions.length; i++) {
+                var categoryId = checkingCategory.id;
+                var levelId = checkingLevel.id;
+                var sectorName = checkingSector.value;
+                var address = checkingAddress.value;
+                var investigator = login_user.user_info.user_loginid;
+                var surveyResult = '{"CheckingCategoryID":"' + categoryId + '","QuestionSectionID":"' + sectionId + '","QuestionID":"' + questions[i].question_id + '","QuestionText":"' + questions[i].question_text + '"';
+                surveyResult += ',"CheckingLevelID":"' + levelId + '","SectorName":"' + sectorName + '","SiteAddress":"' + address + '"';
+                if (active_eo != null) {
+                    surveyResult += ',"EONumber":"' + active_eo.EONumber + '","IntervieweeName":"","Gender":"' + active_eo.Gender + '"';
+                }
+                else {
+                    surveyResult += ',"EONumber":"","IntervieweeName":"","Gender":""';
+                }
+                surveyResult += ',"IndividualSurveyAnswer":"","Score":"","Remark":"","InvestigatorID":"' + investigator + '"';
+                surveyResult += ',"IndividualSurveyDate":"' + sumarry_date + '","F1":"' + sumarry_id + "#" + random_number + '"}';
+                if (i == 0) {
+                    questionSurveyResult += surveyResult;
+                }
+                else {
+                    questionSurveyResult += "," + surveyResult;
+                }
+            }
+            return JSON.parse('{"individualSurveyResult":[' + questionSurveyResult + ']}');
+        }
+
+		//获取 section 状态：是否完成
+        function getSectionIsDone() {
+            var isDone = false;
+            for (var i = 0; i < individualSurveySectionStatus.length; i++) {
+
+                if (individualSurveySectionStatus[i].question_section_id == sectionId) {
+                    isDone = individualSurveySectionStatus[i].question_section_isdone == "1"
+                    ? true : false;
+                    break;
+                }
+            }
+            return isDone;
+        }
+		
+        function InitalizerQuestions() {
+            if (!window.localStorage.getItem("surveyQuestions")) {
+                sAlert("Can not get the questions from the category.");
+                //update the individual survey section status
+                for (var i = 0; i < individualSurveySectionStatus.length; i++) {
+                    if (individualSurveySectionStatus[i].question_section_id == sectionId) {
+                        individualSurveySectionStatus[i].question_section_isdone = "1";
+                        individualSurveySectionStatus[i].question_section_flag_no = "0";
+                        break;
+                    }
+                }
+                window.localStorage.individualSurveySectionStatus = '{"individualSurveySectionStatus":' + JSON.stringify(individualSurveySectionStatus) + '}';
+                window.location.href = "IndividualSurvey.html";
+            }
+            var questions = JSON.parse(window.localStorage.getItem("surveyQuestions"));
+            for (var i = 0; i < questions.length; i++) {
+                if (questions[i].question_section_id != sectionId
+                        || questions[i].gender == "1") { //gender!=0
+                    questions.splice(i, 1);
+                    i--;
+                }
+            }
+            if (questions == null || questions.length == 0) {
+                sAlert("There is no questions in this section.");
+                //update the individual survey section status isDone 
+                var individualSurveySectionStatus = JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus;
+                for (var i = 0; i < individualSurveySectionStatus.length; i++) {
+                    if (individualSurveySectionStatus[i].question_section_id == sectionId) {
+                        individualSurveySectionStatus[i].question_section_isdone = "1";
+                        individualSurveySectionStatus[i].question_section_flag_no = "0";
+                        break;
+                    }
+                }
+                window.localStorage.individualSurveySectionStatus = '{"individualSurveySectionStatus":' + JSON.stringify(individualSurveySectionStatus) + '}';
+                window.location.href = 'IndividualSurvey.html';
+            }
+			
+			window.localStorage.individualSurveyQuestions = '{"individualSurveyQuestions":' + JSON.stringify(questions) + '}';
+            questionRelationship = GetQuestionRelationship(questions);
+			sectionIsDone = getSectionIsDone();
+            if (!sectionIsDone) {
+			var individualSurveyResultJSON = getIndividualSurveyResultJSON(questions);
+                var surveyResult = window.localStorage.getItem("individualSurveyResult");
+                if (surveyResult != null && surveyResult != "" && surveyResult != "null") {
+                    individualSurveyResult = JSON.parse(window.localStorage.getItem("individualSurveyResult"));
+                    //individualSurveyResult.individualSurveyResult.concat(individualSurveyResultJSON.individualSurveyResult);
+                    for (var i = 0; i < individualSurveyResultJSON.individualSurveyResult.length; i++) {
+                        individualSurveyResult.individualSurveyResult.push(individualSurveyResultJSON.individualSurveyResult[i]);
+                    }
+                    window.localStorage.individualSurveyResult = JSON.stringify(individualSurveyResult);
+                }
+                else {
+                    window.localStorage.individualSurveyResult = JSON.stringify(individualSurveyResultJSON);
+                }
+            }
+            else {
+				//TODO: Do Nothing...
+            }
+            individualSurveyResult = JSON.parse(window.localStorage.getItem("individualSurveyResult")).individualSurveyResult;
+            var innerHTML = GetQuestionInnerHTML(questions);
+            document.getElementById("Question").innerHTML = innerHTML;
+        }
+
+        function getFinishedEO() {
+            //Finished[Finished.length] = { EONumber: active_employee.EOID, SectionStatus: []};
+            //window.localStorage.finishedEO = JSON.stringify(Finished);
+            var eo = null;
+            var finishedEOs = window.localStorage.getItem("finishedEO") ? JSON.parse(window.localStorage.getItem("finishedEO")) : null;
+            for (var i = 0; i < finishedEOs.length; i++) {
+                if (finishedEOs[i].EONumber == active_eo.EOID) {
+                    eo = finishedEOs[i];
+                    break;
+                }
+            }
+            return eo;
+        }
+
+        document.addEventListener("deviceready", function () {
+            login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+            checkingCategory = window.localStorage.getItem("checkingCategory") ? JSON.parse(window.localStorage.getItem("checkingCategory")) : null;
+            checkingLevel = window.localStorage.getItem("checkingLevel") ? JSON.parse(window.localStorage.getItem("checkingLevel")) : null;
+            checkingSector = window.localStorage.getItem("checkingSector") ? JSON.parse(window.localStorage.getItem("checkingSector")) : null;
+            checkingAddress = window.localStorage.getItem("checkingAddress") ? JSON.parse(window.localStorage.getItem("checkingAddress")) : null;
+            sumarry_id = window.localStorage.getItem("sumarry_id");
+            sumarry_date = window.localStorage.getItem("sumarry_date");
+            random_number = window.localStorage.getItem("random_number");
+
+            sectionId = window.localStorage.getItem("section_id");
+            active_eo = window.localStorage.getItem("EOentry") ? JSON.parse(window.localStorage.getItem("EOentry")) : null;
+            finishedEO = getFinishedEO();
+
+            individualSurveySections = window.localStorage.getItem("individualSurveySections") ? JSON.parse(window.localStorage.getItem("individualSurveySections")).individualSurveySections : null;
+            individualSurveySectionStatus = window.localStorage.getItem("individualSurveySectionStatus") ? JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus : null;
+            //individualSurveyResult = window.localStorage.getItem("individualSurveyResult") ? JSON.parse(window.localStorage.getItem("individualSurveyResult")).individualSurveyResult : null;
+
+            //Initalizer navInformation
+            var navInnerHTML = GetNavInnerHTML();
+            document.getElementById("navInformation").innerHTML = navInnerHTML;
+            document.getElementById("nav_category").innerHTML = checkingCategory.value;
+            document.getElementById("nav_record").innerHTML = "Recorded " + checkingCategory.value + ":" + checkingLevel.value;
+
+            if (active_eo != null) {
+                document.getElementById("inputEoId").value = active_eo.EONumber;
+            }
+            else {
+                //sAlert("active_eo is null!");
+                sAlert("active_eo is null!");
+                return;
+            }
+            //Initalizer individual survey questions: if not done.
+            InitalizerQuestions();
+        }, true);
+
+        function question_select_onchange(questionId) {
+
+        }
+
+        function question_radio_onclick(type, questionId) {
+            var question = null;
+            var individualQuestions = JSON.parse(window.localStorage.getItem("individualSurveyQuestions")).individualSurveyQuestions;
+            for (var i = 0; i < individualQuestions.length; i++) {
+                if (individualQuestions[i].question_id == questionId) {
+                    question = individualQuestions[i];
+                    break;
+                }
+            }
+            if (question == null) {
+                //sAlert("Can not find the question.");
+                sAlert("Can not find the question.");
+                return;
+            }
+            var btnYes_Id = "btn_" + questionId + "_yes";
+            var btnNo_Id = "btn_" + questionId + "_no";
+            var btnNa_Id = "btn_" + questionId + "_na";
+            var displayArea_Id = "display_" + questionId + "_area";
+            var area_Id = "question_" + questionId + "_area";
+
+            var btnYes = document.getElementById(btnYes_Id);
+            var btnNo = document.getElementById(btnNo_Id);
+            var btnNA = document.getElementById(btnNa_Id);
+            var displayArea = document.getElementById(displayArea_Id);
+            var addressArea = document.getElementById(area_Id);
+            switch (type) {
+                case "Yes":
+                    btnYes.setAttribute("class", "btn_yes_hover"); //obj.setAttribute("className", "btn_yes_hover");
+                    btnNo.setAttribute("class", "btn_no");
+                    btnNA.setAttribute("class", "btn_na");
+                    addressArea.style.display = "none";
+                    UpdateQuestionRelationship(questionId, type);
+                    break;
+                case "No":
+                    btnYes.setAttribute("class", "btn_yes"); //obj.setAttribute("className", "btn_yes_hover");
+                    btnNo.setAttribute("class", "btn_no_hover");
+                    btnNA.setAttribute("class", "btn_na");
+                    addressArea.style.display = "block";
+                    UpdateQuestionRelationship(questionId, type);
+                    break;
+                case "N/A":
+                    btnYes.setAttribute("class", "btn_yes"); //obj.setAttribute("className", "btn_yes_hover");
+                    btnNo.setAttribute("class", "btn_no");
+                    btnNA.setAttribute("class", "btn_na_hover");
+                    addressArea.style.display = "block";
+                    UpdateQuestionRelationship(questionId, type);
+                    break;
+            }
+        }
+
+        function btn_submit_onclick() {
+            var individualQuestions = JSON.parse(window.localStorage.getItem("individualSurveyQuestions")).individualSurveyQuestions;
+            var individualSurveyResult = JSON.parse(window.localStorage.getItem("individualSurveyResult")).individualSurveyResult;
+            var individualSurveySectionStatus = JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus;
+            if (!individualSurveyResult || !individualQuestions || !individualSurveySectionStatus) {
+                sAlert("Initalizer individualSurveyResult failed! ");
+                return;
+            }
+            //get the individual survey result from the page
+			var questionIsDone = false; 
+            var questionSectionFlagNo = "0";
+            for (var i = 0; i < individualSurveyResult.length; i++) {
+                var questionResult = individualSurveyResult[i];
+                var question = null;
+                for (var ii = 0; ii < individualQuestions.length; ii++) {
+                    if (individualQuestions[ii].question_id == questionResult.QuestionID) {
+                        question = individualQuestions[ii];
+                        for (var index = 0; index < questionRelationship.length; index++) {
+                            if (questionRelationship[index].child_question_id == question.question_id) {
+                                if (questionRelationship[index].parent_yes == 0) {
+                                    question = null;
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (question == null) {
+                    continue;
+                }
+                var message = "";
+                var questionId = question.question_id;
+
+                if (question.question_answer_type.indexOf("Yes") > -1 || question.question_answer_type.indexOf("No") > -1 || question.question_answer_type.indexOf("N/A") > -1) {
+                    //Question Type Radio Begin
+                    //sAlert("Question Type Radio Begin");
+                    var btnYes = document.getElementById("btn_" + questionId + "_yes");
+                    var btnNo = document.getElementById("btn_" + questionId + "_no");
+                    var btnNA = document.getElementById("btn_" + questionId + "_na");
+                    if (btnYes != null && btnYes.getAttribute("class") == "btn_yes_hover") { //if Yes is selected
+                        questionResult.IndividualSurveyAnswer = "Yes";
+                        questionResult.Score = question.question_score_if_yes;
+                        questionResult.Remark = "";
+                        questionIsDone = true;
+                    }
+                    else if (btnNo != null && btnNo.getAttribute("class") == "btn_no_hover") { //if No is selected
+                        var area_Id = "question_" + questionId + "_area";
+                        var addressArea = document.getElementById(area_Id);
+                        if ($.trim(addressArea.value) == "") {
+                            questionIsDone = false;
+                            message = "Please input the reason.";
+                            break;
+                        }
+                        questionResult.IndividualSurveyAnswer = "No";
+                        questionResult.Score = question.question_score_if_no;
+                        questionResult.Remark = addressArea.value;
+                        questionIsDone = true;
+                        questionSectionFlagNo = "1";
+                    }
+                    else if (btnNA != null && btnNA.getAttribute("class") == "btn_na_hover") { //if N/A is selected
+                        var area_Id = "question_" + questionId + "_area";
+                        var addressArea = document.getElementById(area_Id);
+                        if ($.trim(addressArea.value) == "") {
+                            questionIsDone = false;
+                            message = "Please input the reason.";
+                            break;
+                        }
+                        questionResult.IndividualSurveyAnswer = "N/A";
+                        questionResult.Score = question.question_score_if_no;
+                        questionResult.Remark = addressArea.value;
+                        questionIsDone = true;
+                        questionSectionFlagNo = "1";
+                    }
+                    else {
+                        questionIsDone = false;
+                        message = "every select question shouled be done";
+                        break;
+                    }
+                    //Question Type Radio End
+                }
+                else if (question.question_answer_type == "" || question.question_answer_type == null) {
+                    //Question Type Answer
+                    var question_answer_Id = 'answer_' + question.question_id + '_cont';
+                    var answer_cont = document.getElementById(question_answer_Id);
+                    questionResult.IndividualSurveyAnswer = answer_cont.value;
+                    questionResult.Score = "";
+                    questionResult.Remark = "";
+                    questionIsDone = true;
+                }
+                else {
+                    //Question Type Select
+                    var question_select_Id = 'select_' + question.question_id + '_cont';
+                    var select_cont = document.getElementById(question_select_Id);
+                    questionResult.IndividualSurveyAnswer = select_cont.options[select_cont.selectedIndex].text;
+                    questionResult.Score = "";
+                    questionResult.Remark = "";
+                    questionIsDone = true;
+                }
+                individualSurveyResult[i] = questionResult;
+            }
+            //Whether is done 
+            if (!questionIsDone) {
+                //sAlert("Every question should be done.");
+                sAlert("Every question should be done.");
+                var divInnerId = "question_" + questionId + "_cont";
+                document.getElementById(divInnerId).onfocus();
+                return;
+            }
+            //update the individual survey section status
+            //Finished[Finished.length] = { EONumber: active_employee.EOID, SectionStatus: [{SectionID:"",IsDone},...]};
+            //window.localStorage.finishedEO = JSON.stringify(Finished);
+            for (var i = 0; i < finishedEO.SectionStatus.length; i++) {
+                if (finishedEO.SectionStatus[i].SectionID == sectionId) {
+                    finishedEO.SectionStatus[i].IsDone = "1";
+                    break;
+                }
+            }
+            var finishedEOs = JSON.parse(window.localStorage.finishedEO);
+            for (var i = 0; i < finishedEOs.length; i++) {
+                if (finishedEOs[i].EONumber == finishedEO.EONumber) {
+                    finishedEOs[i] = finishedEO;
+                    window.localStorage.finishedEO = JSON.stringify(finishedEOs);
+                    break;
+                }
+            }
+
+            for (var i = 0; i < individualSurveySectionStatus.length; i++) {
+                if (individualSurveySectionStatus[i].question_section_id == sectionId) {
+                    individualSurveySectionStatus[i].question_section_isdone = "1";
+                    individualSurveySectionStatus[i].question_section_flag_no = questionSectionFlagNo;
+                    break;
+                }
+            }
+            window.localStorage.individualSurveySectionStatus = '{"individualSurveySectionStatus":' + JSON.stringify(individualSurveySectionStatus) + '}';
+            window.localStorage.individualSurveyResult = '{"individualSurveyResult":' + JSON.stringify(individualSurveyResult) + '}';
+            window.location.href = 'IndividualSurvey.html';
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img alt="" src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_submit" onclick="javascript:btn_submit_onclick();">
+        </div>
+        <div class="main_title">
+            <label id="navInformation">
+            </label>
+        </div>
+        <div class="nav_cont">
+            <div class="nav" id="nav_category">
+            </div>
+            <div class="record" id="nav_record">
+            </div>
+        </div>
+    </div>
+    <div class="fixed_cont">
+        EO ID:
+        <input type="text" id="inputEoId" disabled="disabled" value="" class="cisco_input"
+            style="width: 300px;" /><br />
+        <br />
+        <img id="imgGender" src="images/Female.jpg" alt="" style="height: 900px; width: 500px" />
+    </div>
+    <div id="wrapper">
+        <div id="scroller" style="left: 750px; width: 60%;">
+            <!-- 内容列表 -->
+            <ul>
+                <li id="Question"></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,245 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Active EO List</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/LocalStorageOperation.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript">
+        var employeeList = [];   //all interviewee array.
+        var active_employee;     //active_employee = { EOID: "", SiteID: "", EONumber: "", Gender: "", Remark: "", FilePath: ""}
+        var siteID = JSON.parse(window.localStorage.getItem("checkingAddress")).id;
+
+        function isEOfinished(EOID) {
+            var Finished = window.localStorage.finishedEO != null ? JSON.parse(window.localStorage.finishedEO) : null;
+            if (Finished == null) {
+                return false;
+            }
+            for (var i = 0; i < Finished.length; i++) {
+                if (Finished[i].EONumber == EOID) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function getEmployee(eo_id) {
+            var _employee = null;
+            for (var i = 0; i < employeeList.length; i++) {
+                if (employeeList[i].EOID == eo_id) {
+                    _employee = employeeList[i];
+                    break;
+                }
+            }
+            return _employee;
+        }
+
+        function LoadEOList() {
+            var EOListInnerHTML = "";
+            for (var i = 0; i < employeeList.length; i++) {
+                if (isEOfinished(employeeList[i].EOID) == true) {    //该EO已经完成过
+                    if (employeeList[i].Gender == 1) {
+                        EOListInnerHTML += "<span id='" + employeeList[i].EOID + "' class='user_Male_cont' style='color:gray;' onclick='selectEmployee(this,\"1\")'>" + employeeList[i].EONumber + "</span>";
+                    }
+                    else
+                        EOListInnerHTML += "<span id='" + employeeList[i].EOID + "' class='user_Female_cont' style='color:gray;' onclick='selectEmployee(this,\"0\")'>" + employeeList[i].EONumber + "</span>";
+                }
+                else {
+                    if (employeeList[i].Gender == 1) {
+                        EOListInnerHTML += "<span id='" + employeeList[i].EOID + "' class='user_Male_cont' onclick='selectEmployee(this,\"1\")'>" + employeeList[i].EONumber + "</span>";
+                    }
+                    else
+                        EOListInnerHTML += "<span id='" + employeeList[i].EOID + "' class='user_Female_cont' onclick='selectEmployee(this,\"0\")'>" + employeeList[i].EONumber + "</span>";
+                }
+            }
+            EOListInnerHTML += "<div class='clear'></div>";
+            document.getElementById("divEOList").innerHTML = EOListInnerHTML;
+        }
+
+        $(function () {
+            LocalStorageOperation.clearLocalStorage_ActiveEO();
+            employeeList = window.localStorage.getItem("employeeList") ? JSON.parse(window.localStorage.getItem("employeeList")) : [];
+            if (employeeList == null) {
+                employeeList = [];
+            }
+            active_employee = window.localStorage.getItem("active_employee") ? JSON.parse(window.localStorage.getItem("active_employee")) : null;
+            LoadEOList();
+        });
+
+        function selectEmployee(obj, gender) {
+            $(".user_Male_cont").removeClass("user_Male_cont_hover");
+            $(".user_Female_cont").removeClass("user_Female_cont_hover");
+            if (gender == "1") {
+                $(obj).addClass("user_Male_cont_hover");
+            }
+            if (gender == "0") {
+                $(obj).addClass("user_Female_cont_hover");
+            }
+            active_employee = getEmployee($(obj).attr("id"));
+            window.localStorage.active_employee = JSON.stringify(active_employee);
+        }
+
+        function deleteEmployee() {
+            if (employeeList.length == 0) {
+                sAlert("There have no Eo.");
+                return;
+            }
+            active_employee = window.localStorage.getItem("active_employee") ? JSON.parse(window.localStorage.getItem("active_employee")) : null;
+
+            if (active_employee == null || active_employee == "" || active_employee == "null") {
+                sAlert("Please select an EO.");
+                return;
+            }
+            var confirmCallback = function (buttonIndex) {
+                if (buttonIndex != 1) {
+                    return
+                }
+                if (active_employee.FilePath == "") {
+                    RemoveEmployeeFromPage();
+                }
+                else {
+                    var filePath = active_employee.FilePath;
+                    var successHandle = function () {
+                        RemoveEmployeeFromPage();
+                    }
+                    var failedHandle = function () {
+                        sAlert("Delete EO survery data failed.");
+                    }
+                    var useCapture = true;
+                    FileOperation.FileRemove(filePath, successHandle, failedHandle, useCapture);
+                }
+            }
+            sConfirm("Are you sure to delete this EO information?", confirmCallback);
+        }
+
+        function RemoveEmployeeFromPage() {
+            employeeList = JSON.parse(window.localStorage.getItem("employeeList"));
+            active_employee = JSON.parse(window.localStorage.getItem("active_employee"));
+            for (var i = 0; i < employeeList.length; i++) {
+                if (employeeList[i].EOID == active_employee.EOID) {
+                    employeeList.splice(i, 1);
+                    break;
+                }
+            }
+            LoadEOList();
+
+            active_employee = null;
+            LocalStorageOperation.clearLocalStorage("active_employee");
+            window.localStorage.employeeList = JSON.stringify(employeeList);
+        }
+
+        function StartOnClick() {
+            if (employeeList.length == 0) {
+                sAlert("There have no Eo.");
+                return;
+            }
+            active_employee = window.localStorage.getItem("active_employee") ? JSON.parse(window.localStorage.getItem("active_employee")) : null;
+
+            if (active_employee == null || active_employee == "" || active_employee == "null") {
+                sAlert("Please select an EO.");
+                return;
+            }
+            active_employee = JSON.parse(window.localStorage.getItem("active_employee"));
+            window.localStorage.EOentry = JSON.stringify(active_employee);
+			
+            if (window.localStorage.finishedEO == null || window.localStorage.finishedEO == "null") {
+				
+                var Finished = [{ EONumber: active_employee.EOID, SectionStatus: []}];
+                window.localStorage.finishedEO = JSON.stringify(Finished);
+            }
+			
+            if (!isEOfinished(active_employee.EOID)) {
+				
+                var Finished = JSON.parse(window.localStorage.finishedEO);
+                Finished[Finished.length] = { EONumber: active_employee.EOID, SectionStatus: [] };
+                window.localStorage.finishedEO = JSON.stringify(Finished);
+            }
+			
+            if (active_employee.FilePath != "") {
+				
+                //Read file : get survey results...
+                var onLoadEnd = function (evt) {
+					
+                    var readText = evt.target.result;
+                    var surveyResult = JSON.parse(readText).IndividualSurveyResult;
+                    window.localStorage.individualSurveyResult = '{"individualSurveyResult":' + JSON.stringify(surveyResult) + '}';
+                    window.location.href = "IndividualSurvey.html";
+                }
+                var onError = function () {
+                    sAlert("get the eo survery data failed.");
+                }
+                FileOperation.ReadFileAsText(active_employee.FilePath, onLoadEnd, onError, true);
+            }
+            else {
+                window.location.href = "IndividualSurvey.html";
+            }
+        }
+
+        function btn_submit_onclick() {
+            var confirmCallback = function (buttonIndex) {
+                if (buttonIndex == 1) {
+                    window.location.href = "PhotosAndSummary.html";
+                }
+            }
+            sConfirm("Are you sure to submit the active eo individual information?", confirmCallback);
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_submit" onclick="javascript:btn_submit_onclick();" />
+        </div>
+        <div class="main_title">
+            Active EO List
+        </div>
+        <div class="nav_cont">
+            <!--	<div class="nav">SC/PO</div>
+        <div class="record">Recorded SC/PO: 2</div>-->
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <!-- 内容列表 -->
+            <ul>
+                <li>
+                    <div class="photo_cont">
+                        <div class="List_cont" id="divEOList">
+                            <!--<span class="user_Female_cont">99128312</span><span class="user_Male_cont">8802911</span><span
+                                class="user_Male_cont">8802123</span><span class="user_Female_cont">8803911</span>
+                                <span class="user_Female_cont">99128312</span><span class="user_Male_cont">8802911</span><span
+                                class="user_Male_cont">8802123</span><span class="user_Female_cont">8803911</span><span class="user_Female_cont">99128312</span><span class="user_Male_cont">8802911</span><span
+                                class="user_Male_cont">8802123</span><span class="user_Female_cont">8803911</span><span class="user_Female_cont">99128312</span><span class="user_Male_cont">8802911</span><span
+                                class="user_Male_cont">8802123</span><span class="user_Female_cont">8803911</span>-->
+                        </div>
+                        <div class="clear">
+                        </div>
+                        <div style="text-align: center;">
+                            <button class="btn_normal" style="margin-right: 60px;" ontouchstart="javascript:window.location.href='AddEO.html';">
+                                Add EO</button>
+                            <button class="btn_normal" style="margin-right: 60px;" ontouchstart="javascript:deleteEmployee();">
+                                Delete EO</button>
+                            <button class="btn_normal" ontouchstart="javascript:StartOnClick();">
+                                Start Survey</button>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

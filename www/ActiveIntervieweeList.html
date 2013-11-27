@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Active Interviewee List</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <link rel="stylesheet" href="css/common.css" type="text/css" />
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="cordova-2.2.0.js" charset="utf-8"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript">
+        var intervieweeList = [];        //all interviewee array.
+        var active_interviewee;     //active_interviewee = { ID: "", FilePath: "", Name: "" };
+        var sectionId;
+        var operation_type;
+
+        function getInterviewee(id) {
+            var _interviewee;
+            for (var i = 0; i < intervieweeList.length; i++) {
+                if (intervieweeList[i].ID == id) {
+                    _interviewee = intervieweeList[i];
+                    break;
+                }
+            }
+            return _interviewee;
+        }
+
+        $(function () {
+            intervieweeList = window.localStorage.getItem("intervieweeList") ? JSON.parse(window.localStorage.getItem("intervieweeList")) : null;
+            active_interviewee = window.localStorage.getItem("active_interviewee") ? JSON.parse(window.localStorage.getItem("active_interviewee")) : null;
+            sectionId = window.localStorage.getItem("section_id");
+            if (intervieweeList != null && intervieweeList.length > 0) {
+                var innerHTML = "";
+                for (var i = 0; i < intervieweeList.length; i++) {
+                    if (active_interviewee != null && active_interviewee.ID == intervieweeList[i].ID) {
+                        innerHTML += "<span id='" + intervieweeList[i].ID + "' class='user_cont user_cont_hover' onclick='selectInterviewee(this)'>" + intervieweeList[i].Name + "</span>";
+                    }
+                    else {
+                        innerHTML += "<span id='" + intervieweeList[i].ID + "' class='user_cont' onclick='selectInterviewee(this)'>" + intervieweeList[i].Name + "</span>";
+                    }
+                }
+                innerHTML += "<div  class='clear'></div>"; //interviewee很多时，清除浮动, add by Matallic.guo
+                document.getElementById("divIntervieweeList").innerHTML = innerHTML;
+            }
+        });
+
+        function selectInterviewee(obj) {
+            $(".user_cont").removeClass("user_cont_hover");
+            $(obj).addClass("user_cont_hover");
+            active_interviewee = getInterviewee($(obj).attr("id"));
+            window.localStorage.active_interviewee = JSON.stringify(active_interviewee);
+        }
+
+        function addInterviewee() {
+            window.localStorage.active_interviewee = null;
+            window.localStorage.operation_type = 0;
+            window.location.href = 'AddInterviewee.html'
+        }
+
+        function editInterviewee() {
+            if (window.localStorage.getItem("active_interviewee") != null
+                && window.localStorage.getItem("active_interviewee") != "null") {
+                window.localStorage.operation_type = 1;
+                window.location.href = 'AddInterviewee.html'
+            }
+            else {
+                sAlert("Please select an interviewee.");
+            }
+        }
+
+        function deleteInterviewee() {
+            if (intervieweeList.length == 0) {
+                sAlert("There have no interviewee.");
+                return;
+            }
+            active_interviewee = window.localStorage.getItem("active_interviewee") ? JSON.parse(window.localStorage.getItem("active_interviewee")) : null;
+
+            if (active_interviewee == null || active_interviewee == "" || active_interviewee == "null") {
+                sAlert("Please select an interviewee.");
+                return;
+            }
+
+            var confirmCallback = function (buttonIndex) {
+                if (buttonIndex != 1) {
+                    return
+                }
+                //JSON.parse('{ "ID":"' + guid + '","FilePath":"' + filePath + '", "Name":"' + name + '"}');
+                active_interviewee = JSON.parse(window.localStorage.getItem("active_interviewee"));
+                var iID = active_interviewee.ID;
+                var iName = active_interviewee.Name;
+                var iFilePath = active_interviewee.FilePath;
+                var successHandle = function () {
+                    intervieweeList = JSON.parse(window.localStorage.getItem("intervieweeList"));
+                    for (var i = 0; i < intervieweeList.length; i++) {
+                        if (intervieweeList[i].ID == iID) {
+                            intervieweeList.splice(i, 1);
+                            break;
+                        }
+                    }
+                    window.localStorage.intervieweeList = JSON.stringify(intervieweeList);
+                    document.getElementById("divIntervieweeList").innerHTML = "";
+                    if (intervieweeList != null && intervieweeList.length > 0) {
+                        var innerHTML = "";
+                        for (var i = 0; i < intervieweeList.length; i++) {
+                            innerHTML += "<span id='" + intervieweeList[i].ID + "' class='user_cont' onclick='selectInterviewee(this)'>" + intervieweeList[i].Name + "</span>";
+                        }
+                        document.getElementById("divIntervieweeList").innerHTML = innerHTML;
+                    }
+                }
+                var failedHandle = function () {
+                    //TODO ...
+                    sAlert("delete the interviewee information failed.");
+                }
+                var useCapture = true;
+                FileOperation.FileRemove(iFilePath, successHandle, failedHandle, useCapture);
+            }
+            sConfirm("Are you sure to delete this interviewee information?", confirmCallback);
+        }
+
+        function btn_submit_onclick() {
+            var individualSurveySectionStatus = JSON.parse(window.localStorage.getItem("individualSurveySectionStatus")).individualSurveySectionStatus;
+            //update the individual survey section status
+            for (var i = 0; i < individualSurveySectionStatus.length; i++) {
+                if (individualSurveySectionStatus[i].question_section_id == sectionId) {
+                    individualSurveySectionStatus[i].question_section_isdone = "1";
+                    individualSurveySectionStatus[i].question_section_flag_no = "0";
+                    break;
+                }
+            }
+            window.localStorage.individualSurveySectionStatus = '{"individualSurveySectionStatus":' + JSON.stringify(individualSurveySectionStatus) + '}';
+            window.location.href = "IndividualSurvey.html";
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img alt="" src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_submit" onclick="javascript:btn_submit_onclick();" />
+        </div>
+        <div class="main_title">
+            Active Interviewee List
+        </div>
+        <div class="nav_cont">
+            <!--<div class="nav_category">
+                SC/PO</div>
+            <div class="record">
+                Recorded SC/PO: 2</div>-->
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <!-- 内容列表 -->
+            <ul>
+                <li>
+                    <div class="photo_cont">
+                        <div class="iList_cont" id="divIntervieweeList">
+                            <!--<span class="user_Female_cont">99128312</span><span class="user_Male_cont">8802911</span><span
+                                class="user_Male_cont">8802123</span><span class="user_Female_cont">8803911</span>-->
+                        </div>
+                        <div class="clear">
+                        </div>
+                        <div style="text-align: center;">
+                            <button class="btn_normal" style="margin-right: 10px;" ontouchstart="javascript:addInterviewee();">
+                                Add Interviewee</button>
+                            <button class="btn_normal" style="margin-right: 10px;" ontouchstart="javascript:editInterviewee();">
+                                Edit Interviewee</button>
+                            <button class="btn_normal" style="margin-right: 10px;" ontouchstart="javascript:deleteInterviewee();">
+                                Delete Interviewee</button>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

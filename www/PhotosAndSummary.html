@@ -1,0 +1,314 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>PhotosAndSummary</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/LocalStorageOperation.js"></script>
+    <script type="text/javascript" src="script/CheckConnection.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript">
+        /*
+        for summary.html
+        */
+        var onSiteSurveyContent = '';
+        var individualSurveyContent = '';
+
+        var summary_id = window.localStorage.getItem("sumarry_id");
+        var random_number = window.localStorage.getItem("random_number");
+        var scoring_type = '';
+        var compliance_benchmark = '';
+
+        var checkingLevel = JSON.parse(window.localStorage.getItem("checkingLevel"));
+        var level = checkingLevel.value;
+
+        function readOnSiteSurveyQuestionHandler(evt) {
+            var readText = evt.target.result;
+            if (readText == 'upload onsite survey data: null.' || readText == '') {
+                //get individual survey content
+                GetIndividualSurveyContent();
+                window.location.href = "Summary.html";
+                return;
+            }
+            if (JSON.parse(readText).request_id != 'upload_onsite_survey') {
+                //get individual survey content
+                GetIndividualSurveyContent();
+                window.location.href = "Summary.html";
+                return;
+            }
+            var onSiteSurveyResult = JSON.parse(readText).OnSiteSurveyResult;
+            var questionContent = "<th scope='col'>Question</th><th scope='col'>Answer</th>";
+            for (var i = 0; i < onSiteSurveyResult.length; i++) {
+                var questionText = onSiteSurveyResult[i].QuestionText;
+                var remark = onSiteSurveyResult[i].OnSiteSurveyAnswer;
+                questionContent += "<tr><td>" + questionText + "</td>"
+                questionContent += "<td>" + remark + "</td></tr>";
+            }
+            window.localStorage.OnsiteIndividualQuestion = questionContent;
+            //get individual survey content
+            GetIndividualSurveyContent();
+            window.location.href = "Summary.html";
+        }
+
+        function readOnSiteSurveyHandler(evt) {
+            var readText = evt.target.result;
+            if (readText == 'upload onsite survey data: null.' || readText == '') {
+                //get individual survey content
+                GetIndividualSurveyContent();
+                window.location.href = "Summary.html";
+                return;
+            }
+            if (JSON.parse(readText).request_id != 'upload_onsite_survey') {
+                //get individual survey content
+                GetIndividualSurveyContent();
+                window.location.href = "Summary.html";
+                return;
+            }
+            var onSiteSurveyResult = JSON.parse(readText).OnSiteSurveyResult;
+            var totalPoint = 0; var getPoint = 0; var status = '';
+            if (onSiteSurveyResult.length > 0) {
+                for (var i = 0; i < onSiteSurveyResult.length; i++) {
+                    var score = onSiteSurveyResult[i].Score;
+                    if (score == '') {
+                        continue;
+                    }
+                    totalPoint += 1;
+                    if (score > 0) {
+                        getPoint += 1;
+                    }
+                }
+                onSiteSurveyContent = AppendRow('Site Score', level, getPoint, totalPoint)
+            }
+            window.localStorage.onSiteSurveyContent = onSiteSurveyContent;
+            //get individual survey content
+            GetIndividualSurveyContent();
+            window.location.href = "Summary.html";
+        }
+
+        function GetIndividualSurveyContent() {
+            window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function (fileSystem) {
+                fileSystem.root.getDirectory("SurveyData", { create: false, exclusive: false }, getSurveyDataSuccess, FileOperation.FileErrorHandler);
+            }, FileOperation.FileErrorHandler);
+        }
+
+        function getSurveyDataSuccess(dirEntry) {
+            var directoryReader = dirEntry.createReader();
+            directoryReader.readEntries(function (entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    var imageURI = entries[i].fullPath;
+                    var fileName = imageURI.substr(imageURI.lastIndexOf('/') + 1);
+                    var indexof = fileName.indexOf("_" + summary_id + "_" + random_number + "_");
+                    if (indexof !== -1) {
+                        var filePath = "SurveyData/" + fileName;
+                        var onLoadEnd = function (evt) {
+                            individualSurveyHandler(evt);
+                        }
+                        var onError = function () {
+                            //TODO ...
+                            //sAlert("get individual survey data failed.");
+                        }
+                        var useCapture = true;
+                        FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+                    }
+                }
+            }, FileOperation.FileErrorHandler);
+        }
+
+        function individualSurveyHandler(evt) {
+            var readText = evt.target.result;
+            var json = JSON.parse(readText);
+            if (json.request_id != 'upload_individual_survey') {
+                return;
+            }
+            var isInterViewee = false;
+            var individualSurveyResult = json.IndividualSurveyResult;
+
+            var totalPoint = 0;
+            var getPoint = 0;
+            var status = '';
+            var EOnumber = '';
+            var IntervieweeName = '';
+            for (var i = 0; i < individualSurveyResult.length; i++) {
+                var score = individualSurveyResult[i].Score;
+                EOnumber = individualSurveyResult[i].EONumber;
+                IntervieweeName = individualSurveyResult[i].IntervieweeName;
+                if (IntervieweeName != '') {
+                    isInterViewee = true;
+                    break;
+                }
+                if (score == '') {
+                    continue;
+                }
+                totalPoint += 1;
+                if (score > 0) {
+                    getPoint += 1;
+                }
+            }
+            if (!isInterViewee) {
+                individualSurveyContent += AppendRow(EOnumber, level, getPoint, totalPoint);
+            }
+            window.localStorage.individualSurveyContent = individualSurveyContent;
+        }
+
+        function AppendRow(EOnumber, level, getPoint, totalPoint) {
+            var percent = 0;
+            if (totalPoint != 0) {
+                percent = 100 * getPoint / totalPoint;
+            }
+            var content = "";
+
+            if (percent >= parseFloat(compliance_benchmark)) {
+                status = "Compliant";
+                content = "<tr><td>" + EOnumber + "</td>"
+            } else {
+                status = "Non-Compliant";
+                content = "<tr class='red'><td>" + EOnumber + "</td>"
+            }
+
+            content += "<td>" + level + "</td>"
+            content += "<td>" + getPoint + "</td>"
+            content += "<td>" + percent.toFixed(2) + "%</td>"
+            content += "<td>" + status + "</td></tr>";
+            return content;
+        }
+
+        function GetSummaryTable() {
+            onSiteSurveyContent = '';
+            individualSurveyContent = '';
+
+            LocalStorageOperation.clearLocalStorage("onSiteSurveyContent");
+            LocalStorageOperation.clearLocalStorage("OnsiteIndividualQuestion");
+            LocalStorageOperation.clearLocalStorage("individualSurveyContent");
+
+            var checkingCategory = JSON.parse(window.localStorage.getItem("checkingCategory"));
+            var checkingLevel = JSON.parse(window.localStorage.getItem("checkingLevel"));
+            scoring_type = checkingCategory.scoring_calculation_type;
+            compliance_benchmark = checkingCategory.compliance_benchmark;
+            var onSiteSurveyFileName = "SurveyData/Upload_OnSiteSurveyResult_" + summary_id + "_" + random_number + ".txt";
+            var filePath = onSiteSurveyFileName;
+            var onLoadEnd = scoring_type == ''
+								? function (evt) { readOnSiteSurveyQuestionHandler(evt); }
+								: function (evt) { readOnSiteSurveyHandler(evt); }
+            var onError = function () {
+                //sAlert("get onsite survey data failed.");
+                //get individual survey content
+                GetIndividualSurveyContent();
+                window.location.href = "Summary.html";
+            }
+            var useCapture = true;
+            FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+        }
+        /*end */
+
+        function LoadOnSiteSurveySections() {
+            var PhotosAndSummarySections = JSON.parse(window.localStorage.getItem("onsitePhotosAndSummarySections"));
+            var onsiteSectionInnerHTML = GetSectionInnerHTML(PhotosAndSummarySections);
+            document.getElementById("QuestionSection").innerHTML = onsiteSectionInnerHTML;
+        }
+
+        function GetSectionInnerHTML(Sections) {
+            var innerHTML = ""; var index = 0;
+            for (var i = 0; i < Sections.length; i++) {
+                index += 1;
+                var divInnerHTML = "";
+                var imgHTML = GetSectionImage(Sections[i]);
+                var clickHandle = "javascript:sectionClick('" + Sections[i].url + "','" + Sections[i].item + "');";
+                if (Sections[i].section_isdone == "1") {
+                    //clickHandle = "javascript:sAlert('" + Sections[i].item + " is finished!');";
+                    clickHandle = "javascript:sAlert('" + Sections[i].item + " is finished!');";
+                }
+
+                divInnerHTML += '<div class="btn_cont">';
+                divInnerHTML += '<label>' + index + '.</label>';
+                divInnerHTML += '<button class="cisco_btn_long" onclick="' + clickHandle + '">' + Sections[i].item + '</button>';
+                divInnerHTML += imgHTML;
+                divInnerHTML += '<div class="clear"></div></div>';
+                innerHTML += divInnerHTML;
+            }
+            return innerHTML;
+        }
+
+        function sectionClick(url, item) {
+            if (item == "Summary") {
+                document.addEventListener("deviceready", function () {
+                    //for summary.html
+                    GetSummaryTable();
+                }, true);
+            }
+            else {
+                window.location.href = url;
+            }
+        }
+        function GetSectionImage(section) {
+            var imageHTML = '<img alt="" src="images/not done.png" />';
+            if (section.section_isdone == "1") {
+                imageHTML = '<img alt="" src="images/finished.png" />';
+            }
+            return imageHTML;
+        }
+
+        document.addEventListener("deviceready", function () {
+            LoadOnSiteSurveySections();
+        }, true);
+
+        function checkAllHasBeenDone() {
+            var PhotosAndSummarySections = JSON.parse(window.localStorage.getItem("onsitePhotosAndSummarySections"));
+            for (var i = 0; i < PhotosAndSummarySections.length; i++) {
+                if (PhotosAndSummarySections[i].section_isdone == "0") {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function btn_submit_onclick() {
+            if (!checkAllHasBeenDone()) {
+                sAlert("Please fill all sections");
+                return;
+            }
+            var client_online = CheckConnection.ConnectServer();
+            if (client_online) {
+                window.location.href = "DownLoad.html";
+            }
+            else {
+                window.location.href = "MainPage.html";
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <div class="top">
+            <img src="images/Login_logo.png" class="top_logo" alt="" />
+            <input type="button" class="btn_submit" onclick="javascript:btn_submit_onclick();" />
+        </div>
+        <div class="main_title">
+            Photos And Summary
+        </div>
+        <div class="nav_cont">
+            <div class="nav">
+                Traffic &amp; Parking Enforcement &gt; Level 1</div>
+        </div>
+    </div>
+    <div id="wrapper">
+        <div id="scroller">
+            <!-- 内容列表 -->
+            <ul>
+                <li id="QuestionSection"></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

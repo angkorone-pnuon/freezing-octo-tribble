@@ -1,0 +1,45 @@
+﻿.cisco_textarea
+{
+    width: 950px;
+    height: 112px;
+    min-height: 112px;
+    line-height: 112px;
+    font-size: 50px;
+    border: none;
+    border-radius: 10px;
+    background-origin: padding-box, padding-box, padding-box;
+    padding-right: 140px;
+    border: 2px solid #23294c;
+    box-shadow: 1px 2px 6px 1px rgba(0,0,0,.12) inset;
+}
+.background
+{
+    color: red;
+}
+
+.iList_cont{
+	position:relative;
+	min-height:600px;
+	background:#c3e4fd;
+	border-radius:20px;
+	margin-bottom:70px;
+	padding:20px;
+	}
+	
+.iList_cont .user_cont{
+        float: left;
+        font-weight: bold;
+        background: url(../images/Login_user.png) no-repeat 20px 25px;
+        text-indent: 70px;
+        color: #242a4e;
+        font-size: 50px;
+        line-height: 100px;
+        width: 50%;
+        height: 100px;
+        overflow: hidden;
+        display: block;
+        border-radius:15px;
+    }
+    
+    
+.iList_cont .user_cont_hover{background: url(../images/Login_user.png) #ff0 no-repeat 20px 25px;} 

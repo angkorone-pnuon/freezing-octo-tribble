@@ -1,0 +1,247 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Main Page</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <script type="text/javascript" src="script/photo_move.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <script type="text/javascript" charset="utf-8">
+        var token = JSON.parse(window.localStorage.getItem("login_user")).token;
+        var SummaryID = window.localStorage.getItem("sumarry_id");
+
+        var random_number = window.localStorage.getItem("random_number");
+        var summaryId = SummaryID + "_" + random_number;
+
+        var txtFileSavePath = "SurveyData/Photos_" + summaryId + ".txt";
+        var pictureSource;   // picture source    
+        var destinationType; // sets the format of returned value
+        var currentImageName;
+        var PhotoEntity = { request_id: "upload_photos", token: token, Photo: [] };
+        var Photos = [];
+        var PhotoSlider = null;
+
+        document.addEventListener("deviceready", function () {
+            pictureSource = navigator.camera.PictureSourceType;
+            destinationType = navigator.camera.DestinationType;
+        }, false);
+
+        function getFileName() {
+            var d = new Date();
+            var year = d.getFullYear();
+            var month = d.getMonth() + 1;
+            var date = d.getDate();
+            var day = d.getDay();
+            var Hours = d.getHours();
+            var Minutes = d.getMinutes();
+            var Seconds = d.getSeconds();
+            var curDateTime = year;
+            if (month > 9)
+                curDateTime = curDateTime + month;
+            else
+                curDateTime = curDateTime + "0" + month;
+            if (date > 9)
+                curDateTime = curDateTime + date;
+            else
+                curDateTime = curDateTime + "0" + date;
+            if (Hours > 9)
+                curDateTime = curDateTime + Hours;
+            else
+                curDateTime = curDateTime + "0" + Hours;
+            if (Minutes > 9)
+                curDateTime = curDateTime + Minutes;
+            else
+                curDateTime = curDateTime + "0" + Minutes;
+            if (Seconds > 9)
+                curDateTime = curDateTime + Seconds;
+            else
+                curDateTime = curDateTime + "0" + Seconds;
+            curDateTime = curDateTime + d.getMilliseconds();
+            return curDateTime + "_" + SummaryID + "_" + random_number + ".jpg";
+        }
+
+        function createPhotoDiv(photoEntry) {
+            //Create Div information
+            var filePath = photoEntry.fullPath;
+            var divPhoto = document.createElement('div');
+            divPhoto.id = photoEntry.name;
+            divPhoto.className = 'canvas_cont';
+            //Create Img information
+            var imgPhoto = document.createElement('img');
+            imgPhoto.className = 'photo_img';
+            imgPhoto.src = photoEntry.fullPath;
+            divPhoto.appendChild(imgPhoto);
+            return divPhoto;
+        }
+
+        function takePhoto() {
+            document.addEventListener("deviceready", function () {
+                navigator.camera.getPicture(onPhotoURISuccess, onFail, { quality: 40, destinationType: destinationType.FILE_URI, sourceType: pictureSource.CAMERA });
+            }, false);
+        }
+        function addPhoto() {
+            document.addEventListener("deviceready", function () {
+                navigator.camera.getPicture(onPhotoURISuccess, onFail, { quality: 40, destinationType: destinationType.FILE_URI, sourceType: pictureSource.SAVEDPHOTOALBUM });
+            }, false);
+        }
+
+        function onPhotoURISuccess(imageURI) {
+            currentImageName = imageURI.substring(imageURI.lastIndexOf('/') + 1);
+            window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, onFileSystemTmpSuccess, fail);
+        }
+        function onFileSystemTmpSuccess(fileSystem) {
+            fileSystem.root.getFile(currentImageName, null, gotTmpFileEntry, fail);
+        }
+        function gotTmpFileEntry(fileTmpEntry) {
+            var parent = fileTmpEntry.fullPath.substring(0, fileTmpEntry.fullPath.lastIndexOf('/')).replace("tmp", "Documents") + "/SurveyPhotos",
+                parentName = "SurveyPhotos";
+
+            var parentEntry = new DirectoryEntry(parentName, parent);
+            fileTmpEntry.copyTo(parentEntry, getFileName(), fileMoveSuccess, fileMoveFail);
+        }
+
+        function fileMoveSuccess(entry) {
+            var divSlider = document.getElementById('slider');
+            var divPhoto = createPhotoDiv(entry);
+            divSlider.appendChild(divPhoto);
+
+            var Photo = { SummaryID: SummaryID + "#" + random_number, PhotoAddress: "../SurveyPhotos/" + entry.name };
+            Photos.push(Photo);
+
+            optionWidth = $(".photo_cont").width() - 40;
+            changeWidth = optionWidth + 40;
+            $(".canvas_cont").css("width", optionWidth);
+            $(".canvas_cont").css("height", optionWidth * 0.75);
+            changeDisplay();
+            while ($("#right_move").css('display') == "block") {
+                $("#right_move").click();
+            }
+        }
+        function fileMoveFail(error) {
+            //sAlert("error: " + error.code);
+            sAlert("error: " + error.code);
+        }
+
+        function deletePhoto() {
+            if ($(".canvas_cont").length == 0) {
+                sAlert("There have no photo to delete.");
+                return;
+            }
+            var confirmCallback = function (buttonIndex) {
+                if (buttonIndex != 1) {//button "Cancel"
+                    return;
+                }
+                var divSlider = document.getElementById('slider');
+                var divPhoto = divSlider.children[pindex - 1];
+                var photoName = divPhoto.id;
+                for (var i = 0; i < Photos.length; i++) {
+                    var photoAddress = Photos[i].PhotoAddress;
+                    var divId = photoAddress.substring(photoAddress.lastIndexOf('/') + 1);
+                    if (photoName == divId) {
+                        var filePath = "SurveyPhotos/" + photoName;
+                        var successHandle = function () {
+                            Photos.splice(i, 1);             //Remove the photo from array.
+                            divSlider.removeChild(divPhoto); //Remove the photo from the page.
+                            changeDisplay();
+                        }
+                        var failedHandle = function () {
+                            sAlert("photo remove failed.");
+                        }
+                        var useCapture = true;
+                        FileOperation.FileRemove(filePath, successHandle, failedHandle, useCapture);
+                        break;
+                    }
+                }
+            }
+            sConfirm("Are you sure delete the photo?", confirmCallback);
+        }
+
+        function onFail(message) {
+            //sAlert('Failed because: ' + message);
+        }
+        function fail(evt) {
+            //sAlert(evt.target.error.code);
+            sAlert(evt.target.error.code);
+        }
+
+        function submit() {
+            PhotoEntity.Photo = Photos;
+            if (PhotoEntity.Photo.length > 0) {
+                var filePath = txtFileSavePath;
+                var fileContent = JSON.stringify(PhotoEntity);
+                var onWriteEnd = function () {
+                    var PhotosAndSummarySections = JSON.parse(window.localStorage.getItem("onsitePhotosAndSummarySections"));
+                    for (var i = 0; i < PhotosAndSummarySections.length; i++) {
+                        if (PhotosAndSummarySections[i].item == "Photos") {
+                            PhotosAndSummarySections[i].section_isdone = "1";
+                            break;
+                        }
+                    }
+                    window.localStorage.onsitePhotosAndSummarySections = JSON.stringify(PhotosAndSummarySections);
+                    window.location.href = 'PhotosAndSummary.html';
+                }
+                var onError = function () {
+                    //TODO ...
+                    sAlert("save photos data failed.");
+                }
+                var useCapture = true;
+                FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+            }
+            else {
+                var PhotosAndSummarySections = JSON.parse(window.localStorage.getItem("onsitePhotosAndSummarySections"));
+                for (var i = 0; i < PhotosAndSummarySections.length; i++) {
+                    if (PhotosAndSummarySections[i].item == "Photos") {
+                        PhotosAndSummarySections[i].section_isdone = "1";
+                        break;
+                    }
+                }
+                window.localStorage.onsitePhotosAndSummarySections = JSON.stringify(PhotosAndSummarySections);
+                window.location.href = 'PhotosAndSummary.html';
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="headerPhoto">
+        <div class="top">
+            <img src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_submit" onclick="javascript:submit();" />
+        </div>
+    </div>
+    <div class="photo_outer">
+        <div id="left_move" style="display: none;" onclick="moveLeft()">
+            <img src="images/toleft.png"></div>
+        <div id="right_move" style="display: none;" onclick="moveRight()">
+            <img src="images/toright.png"></div>
+        <div class="photo_cont">
+            <div id="slider">
+            </div>
+            <div class="clear">
+            </div>
+        </div>
+        <div style="text-align: center;">
+            <!--<button class="btn_normal" style="margin-right: 60px;" onclick="takePhoto();">
+                Take Photo</button>
+            <button class="btn_normal" style="margin-right: 60px;" onclick="addPhoto();">
+                Add Photo</button>
+            <input type="button" value="Delete Photo" class="btn_normal" onclick="deletePhoto();" />-->
+            <button class="btn_normal" style="margin-right: 60px;" ontouchstart="javascript:takePhoto();">
+                Take Photo</button>
+            <button class="btn_normal" style="margin-right: 60px;" ontouchstart="javascript:addPhoto();">
+                Add Photo</button>
+            <button class="btn_normal" ontouchstart="javascript:deletePhoto();">
+                Delete Photo</button>
+        </div>
+    </div>
+</body>
+</html>

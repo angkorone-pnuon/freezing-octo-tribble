@@ -1,0 +1,289 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no, minimum-scale=0.5, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Signature</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <script type="text/javascript" src="script/dojo.js"></script>
+    <script type="text/javascript" src="script/photo_move.js"></script>
+    <script type="text/javascript" src="script/canvas2image.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+</head>
+<body>
+    <div id="headerPhoto">
+        <div class="top">
+            <img alt="" src="images/Login_logo.png" class="top_logo" />
+            <input type="button" class="btn_submit" onclick="javascript:Submit();">
+        </div>
+    </div>
+    <div class="photo_outer">
+        <div class="photo_cont">
+            <div id="slider">
+                <canvas id="canvasArea" style="position: relative; border-color: rgb(0,0,0); border-width: thin;
+                    border-style: solid" height="1050px" width="1400px">
+                </canvas>
+            </div>
+            <br>
+            <div style="text-align: center;">
+                <input type="button" style="margin-right: 60px;" value="Clear Signature" class="btn_normal"
+                    ontouchstart="javascript:clearCanvas();" />
+                <!--<input type="button" style="margin-right: 60px;" value="Save Signature" class="btn_normal"
+                    ontouchstart="javascript:SaveCanvas();" />-->
+                <input type="button" style="margin-right: 60px;" value="View Signature" class="btn_normal"
+                    ontouchstart="javascript:ViewSignature();" />
+                <input type="hidden" id="txtOutput" />
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript">
+        var token = JSON.parse(window.localStorage.getItem("login_user")).token;
+        var SummaryID = window.localStorage.getItem("sumarry_id");
+
+        var random_number = window.localStorage.getItem("random_number");
+        var summaryId = SummaryID + "_" + random_number;
+
+        var outputID = "txtOutput";
+        var isSignaturesBeenSaved = false;
+        var isSignaturesBeenCleared = true;
+        var Signatures = [];
+        var SignatureEntity = { request_id: "upload_signature", token: token, Signature: [] };
+
+        var cb_canvas = null;
+        var cb_ctx = null;
+        var cb_lastPoints = null;
+        var cb_easing = 0.4;
+        var output = [];
+        var originPoint = null;
+        var strDownloadMime = "image/octet-stream";
+        // Setup event handlers
+        window.onload = init;
+
+        function init(e) {
+            cb_canvas = document.getElementById("canvasArea");
+            originPoint = cb_canvas.getBoundingClientRect(); //????canvas?????  
+            //var vx = e.clientX - r.left;//?в?k   
+            //var vy = e.clientY - r.top;//?в?k
+            cb_lastPoints = Array();
+
+            if (cb_canvas.getContext) {
+                cb_ctx = cb_canvas.getContext('2d');
+                cb_ctx.lineWidth = 2;
+                cb_ctx.strokeStyle = "rgb(0, 0, 0)";
+                cb_ctx.beginPath();
+                //var s = cb_ctx.gettranslate();
+                //Draw in the existing JSON String
+                if ('' != '') {
+                    output = dojo.fromJson('');
+                    for (var i in output) {
+                        if (typeof output[i] === 'object') {
+                            cb_ctx.beginPath()
+                            cb_ctx.moveTo(output[i].sX, output[i].sY)
+                            cb_ctx.lineTo(output[i].eX, output[i].eY)
+                            cb_ctx.stroke()
+                            cb_ctx.closePath()
+                        }
+                    }
+                }
+                // Enable drawing mode if the datasource is editable
+                if (true) {
+                    cb_canvas.onmousedown = startDraw;
+                    cb_canvas.onmouseup = stopDraw;
+                    cb_canvas.ontouchstart = startDraw;
+                    cb_canvas.ontouchstop = stopDraw;
+                    cb_canvas.ontouchmove = drawMouse;
+                }
+            }
+        }
+        function startDraw(e) {
+            if (e) {
+                if (e.touches) {
+                    // Touch event
+                    for (var i = 1; i <= e.touches.length; i++) {
+                        cb_lastPoints[i] = getCoords(e.touches[i - 1]); // Get info for finger #1
+                    }
+                }
+                else {
+                    // Mouse event
+                    cb_lastPoints[0] = getCoords(e);
+                    cb_canvas.onmousemove = drawMouse;
+                }
+            }
+            return false;
+        }
+        // Called whenever cursor position changes after drawing has started
+        function stopDraw(e) {
+            e.preventDefault();
+            cb_canvas.onmousemove = null;
+        }
+        function drawMouse(e) {
+            if (e.touches) {
+                // Touch Enabled
+                for (var i = 1; i <= e.touches.length; i++) {
+                    var p = getCoords(e.touches[i - 1]); // Get info for finger i
+                    cb_lastPoints[i] = drawLine(cb_lastPoints[i].x, cb_lastPoints[i].y, p.x, p.y);
+                }
+            }
+            else {
+                // Not touch enabled
+                var p = getCoords(e);
+                cb_lastPoints[0] = drawLine(cb_lastPoints[0].x, cb_lastPoints[0].y, p.x, p.y);
+            }
+            cb_ctx.stroke();
+            cb_ctx.closePath();
+            cb_ctx.beginPath();
+
+            return false;
+        }
+        // Draw a line on the canvas from (s)tart to (e)nd
+        function drawLine(sX, sY, eX, eY) {
+            isSignaturesBeenCleared = false;
+
+            cb_ctx.moveTo(sX, sY);
+            cb_ctx.lineTo(eX, eY);
+
+            output.push({ 'sX': sX
+                                      , 'sY': sY
+                                      , 'eX': eX
+                                      , 'eY': eY
+            });
+
+            outputField = document.getElementById(outputID);
+            outputField.value = dojo.toJson(output);
+
+            return { x: eX, y: eY };
+        }
+        // Get the coordinates for a mouse or touch event
+        function getCoords(e) {
+            if (e.offsetX) {
+                return { x: e.offsetX, y: e.offsetY };
+            }
+            else if (e.layerX) {
+                //have no test this path
+                return { x: e.layerX - originPoint.left, y: e.layerY - originPoint.top };
+            }
+            else {
+                return { x: e.pageX - originPoint.left, y: e.pageY - originPoint.top };
+            }
+        }
+        function ShowSign() {
+            outputField = document.getElementById(outputID);
+            //sAlert(outputField.value);
+            sAlert(outputField.value);
+        }
+        function fail(error) {
+            //sAlert("failed");
+            sAlert("failed");
+        }
+
+        window.onmouseup = stopDraw;
+
+        function SaveImage(isGotoBackPage) {
+            if (window.localStorage.getItem("canvasSignature") != null && window.localStorage.getItem("canvasSignature") != "null" && window.localStorage.getItem("canvasSignature") != "") {
+                Signatures = JSON.parse(window.localStorage.getItem("canvasSignature"));
+            }
+            var imgData = cb_canvas.toDataURL("image/jpg");
+            //save signature image.
+            var sIndex = 0;
+            var signatureContent = imgData.replace("image/jpg", strDownloadMime);
+            //save the signature to local system
+            var filePath = "SurveySignature/" + SummaryID + "_" + random_number + "_" + sIndex + ".txt";
+            var fileContent = signatureContent;
+            var onWriteEnd = function () {
+                //add the signature image information to the Signatures arrary.
+                var signatureAddress = "../SurveySignature/" + SummaryID + "_" + random_number + "_" + sIndex + ".jpg";
+                var Signature = { SummaryID: SummaryID + "#" + random_number, SignatureAddress: signatureAddress, FilePath: filePath, SignatureData: imgData };
+
+                Signatures = [];
+                Signatures.push(Signature);
+                window.localStorage.canvasSignature = JSON.stringify(Signatures);
+                isSignaturesBeenSaved = true;
+                if (!isGotoBackPage) {
+                    sAlert("Save signature succeeded.");
+                }
+                else {
+                    GotoBackPage();
+                }
+            }
+            var onError = function () {
+                isSignaturesBeenSaved = false;
+                sAlert("save signature failed.");
+            }
+            var useCapture = true;
+            FileOperation.FileWrite(filePath, fileContent, false, onWriteEnd, onError, useCapture);
+        }
+        function clearCanvas() {
+            cb_ctx.clearRect(0, 0, 1400, 1050);
+            outputField = document.getElementById(outputID);
+            outputField.value = "";
+            output = [];
+            isSignaturesBeenSaved = false;
+            isSignaturesBeenCleared = true;
+        }
+        function SaveCanvas() {
+            if (isSignaturesBeenCleared) {
+                sAlert("No signature information");
+                return;
+            }
+            if (isSignaturesBeenSaved) {
+                sAlert("The signature is already saved.");
+                return;
+            }
+            SaveImage(false);
+        }
+        function ViewSignature() {
+            if (window.localStorage.getItem("canvasSignature") != null && window.localStorage.getItem("canvasSignature") != "null" && window.localStorage.getItem("canvasSignature") != "") {
+                Signatures = JSON.parse(window.localStorage.getItem("canvasSignature"));
+            }
+            if (Signatures.length == 0) {
+                sAlert("There have no signature.");
+                return;
+            }
+            window.location.href = 'SignatureView.html';
+        }
+
+        function Submit() {
+            //save the Canvas signature to image
+            if (!isSignaturesBeenCleared) {
+                SaveImage(true);
+            }
+            else {
+                GotoBackPage();
+            }
+        }
+
+        function GotoBackPage() {
+            Signatures = [];
+            if (window.localStorage.getItem("canvasSignature") != null && window.localStorage.getItem("canvasSignature") != "null" && window.localStorage.getItem("canvasSignature") != "") {
+                Signatures = JSON.parse(window.localStorage.getItem("canvasSignature"));
+            }
+            if (Signatures.length == 0) {
+                var confirmCallback = function (buttonIndex) {
+                    if (buttonIndex != 1) {//button "Cancel"
+                        return;
+                    }
+                    Signatures = [];
+                    window.localStorage.canvasSignature = JSON.stringify(Signatures);
+                    window.location.href = 'Summary.html';
+                }
+                sConfirm("No signature information, are you sure to submit?", confirmCallback);
+            }
+            else {
+                window.location.href = 'Summary.html';
+            }
+        }
+        
+    </script>
+</body>
+</html>

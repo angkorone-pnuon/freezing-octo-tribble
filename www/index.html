@@ -1,0 +1,305 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, minimum-scale=1, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta content="telephone=no" name="format-detection" />
+    <title>Login</title>
+    <script type="text/javascript" src="script/iscroll.js"></script>
+    <link rel="stylesheet" href="css/css.css" type="text/css" />
+    <script type="text/javascript" src="cordova-2.2.0.js"></script>
+    <script type="text/javascript" src="script/jquery.js"></script>
+    <script type="text/javascript" src="script/Json.js"></script>
+    <script type="text/javascript" src="script/sAlert.js"></script>
+    <!-- common javascript -->
+    <script type="text/javascript" src="script/Common.js"></script>
+    <script type="text/javascript" src="script/LocalStorageOperation.js"></script>
+    <script type="text/javascript" src="script/CheckConnection.js"></script>
+    <script type="text/javascript" src="script/FileOperation.js"></script>
+    <!--  -->
+    <script type="text/javascript">
+        //This page will Initalizer localStorage
+        //JSON object type,format from the httpRequest
+        //window.localStorage.login_user
+        //window.localStorage.app_version
+        var list_user = new Array();    //json string in the array
+        var login_user;                 //JSON object
+        var app_version;                //JSON object
+
+        var xmlHttpLogin = CheckConnection.XmlHttpConnect();
+
+        //Initalizer page params
+        InitalizerPageParam();
+
+        //get login user history list (is JSON object in Array)
+        function InitalizerPageParam() {
+            //clear all local system LocalStorage
+            LocalStorageOperation.clearAllOfLocalStorage();
+
+            //Read file: DataSource/LoginUser.txt
+            var filePath = "DataSource/LoginUser.txt";
+            var onLoadEnd = function (evt) {
+                var readText = evt.target.result;
+                if (readText.indexOf("##-##-##") > -1) {
+                    list_user = readText.split("##-##-##");
+                }
+                else if ($.trim(readText) != "") {
+                    list_user.push(readText);
+                }
+                login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+                if (login_user == null) {
+                    if (list_user != null && list_user.length > 0) {
+                        var index = list_user.length - 1;
+                        window.localStorage.login_user = list_user[list_user.length - 1];
+                        login_user = JSON.parse(list_user[list_user.length - 1]);
+                    }
+                }
+            }
+            var onError = function () {
+                //sAlert("Get local user information failed!");
+            }
+            var useCapture = true;
+            FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+        }
+
+        //get user information by the user name(user_loginid)
+        function getUser(user_loginid) {
+            var _user = null;
+            if (list_user != null && list_user.length > 0) {
+                for (var i = 0; i < list_user.length; i++) {
+                    var user = JSON.parse(list_user[i]);
+                    if (user.user_info.user_loginid == user_loginid.toLowerCase()) {
+                        _user = user;
+                        break;
+                    }
+                }
+            }
+            return _user;
+        }
+
+        //get login user history list (is JSON object in Array)
+        function changeLoginUserPassword(user_loginid, new_password) {
+            if (list_user != null && list_user.length > 0) {
+                for (var i = 0; i < list_user.length; i++) {
+                    var user = JSON.parse(list_user[i]);
+                    if (user.user_info.user_loginid == user_loginid.toLowerCase()) {
+                        user.user_info.password = new_password;
+                        list_user[i] = JSON.stringify(user);
+                        break;
+                    }
+                }
+                //overwrite the LoginUser.txt content
+                var overwrite_file_content = '';
+                for (var i = 0; i < list_user.length; i++) {
+                    if (i == 0) {
+                        overwrite_file_content += list_user[i];
+                    }
+                    else {
+                        overwrite_file_content += "##-##-##" + list_user[i];
+                    }
+                }
+                var filePath = "DataSource/LoginUser.txt";
+                var useCapture = true;
+                var onWriteEnd = function () {
+                    //TODO ...
+                }
+                var onError = function () {
+                    //TODO ...
+                    //sAlert("Write login user file failed.");
+                }
+                FileOperation.FileWrite(filePath, overwrite_file_content, false, onWriteEnd, onError, useCapture);
+            }
+        }
+
+        //get system application(app) version information
+        function getAppVersion() {
+            var _appVersion = null;
+            if (!window.localStorage.getItem("app_version")) {
+                _appVersion = JSON.parse(window.localStorage.getItem("app_version"));
+            }
+            else {
+                //Read file: DataSource/AppVersion.txt
+                var filePath = "DataSource/AppVersion.txt";
+                var useCapture = true;
+                var onLoadEnd = function (evt) {
+                    var readText = evt.target.result;
+                    _appVersion = JSON.parse(readText);
+                    window.localStorage.app_version = readText;
+                }
+                var onError = function () {
+                    //sAlert("Get local app version failed!");
+                }
+                FileOperation.ReadFileAsText(filePath, onLoadEnd, onError, useCapture);
+            }
+            return _appVersion;
+        }
+
+        //button login onclick event
+        function login_onclick() {
+            var userName = document.getElementById("inputUserName").value;
+            var password = document.getElementById("inputPassword").value;
+            if (userName == '') {
+                sAlert("Please input the user name.");
+                return;
+            }
+            if (password == '') {
+                sAlert("Please input the password.");
+                return;
+            }
+            var client_online = CheckConnection.ConnectServer();
+            if (client_online) { //the client is online: send login request
+                loginRequest(userName, password);
+            }
+            else { //the client is offline: whether the login user is null
+                var old_user = getUser(userName);
+                if (old_user == null) {
+                    sAlert("This is your first login. Please connect to the internet and Cisco-iPad server！");
+                    return;
+                }
+                if (old_user.user_info.password != password) {
+                    sAlert("Password is wrong!");
+                    return;
+                }
+                window.localStorage.login_user = JSON.stringify(old_user);
+                login_user = old_user;
+                FileOperation.ReadFileForMainPage();
+                sAlert("Can not connect to the server, and the survey data will store to the local system.");
+                window.location.href = "MainPage.html";
+            }
+        }
+        //login system: user send httprequest to the server
+        function loginRequest(userName, password) {
+            var app_type = "ipad"; var device_id = "1235ABC4532";
+            var client_app_version = app_version == null ? "1.0" : app_version.new_version;
+            var login_ResponseBody = '{"request_id":"login","pass_word":"' + password + '","user_account_id":"' + userName + '","app_type":"' + app_type + '","device_id":"' + device_id + '","client_app_version":"' + client_app_version + '"}';
+            var timeout = 10000;
+            var onTimeOut = function () {
+                sAlert("login server timeout.");
+            }
+            CheckConnection.ajaxHttpRequest(xmlHttpLogin, login_ResponseBody, HandleStateChange_Login, false, timeout, onTimeOut);
+        }
+        //loginRequest state change event handle
+        function HandleStateChange_Login() { //Login HttpRequest response result operation handle
+            switch (xmlHttpLogin.readyState.toString()) {
+                case '0': // 0 (未初始化) 对象已建立，但是尚未初始化（尚未调用open方法）
+                case '1': // 1 (初始化) 对象已建立，尚未调用send方法
+                case '2': // 2 (发送数据) send方法已调用，但是当前的状态及http头未知
+                case '3': // 3 (数据传送中) 已接收部分数据，因为响应及http头不全，这时通过responseBody和responseText获取部分数据会出现错误，
+                    break;
+                case '4': // 4 (完成) 数据接收完毕,此时可以通过通过 responseBody 和 responseText 获取完整的回应数据 
+                    var responseText = xmlHttpLogin.responseText;
+                    if (xmlHttpLogin.status == 200 || xmlHttpLogin.status == 0) {
+                        if (JSON.parse(responseText).response_id == '1') {
+                            //write file: store the login_user information
+                            var filePath = "DataSource/LoginUser.txt";
+                            var index = responseText.indexOf("}}");
+                            var _password = document.getElementById("inputPassword").value;
+                            var write_file_content = responseText.substring(0, index) + ',"password":"' + _password + '"' + responseText.substring(index, responseText.length);
+                            login_user = window.localStorage.getItem("login_user") ? JSON.parse(window.localStorage.getItem("login_user")) : null;
+                            if (login_user == null) {//first login...
+                                //sAlert("first login..");
+                                var useCapture = true;
+                                var onWriteEnd = function () {
+                                    //TODO ...
+                                }
+                                var onError = function () {
+                                    //TODO ...
+                                    sAlert("write login user to file failed.");
+                                }
+                                FileOperation.FileWrite(filePath, write_file_content, false, onWriteEnd, onError, useCapture);
+                            }
+                            else {
+                                var _user_name = document.getElementById("inputUserName").value.toLowerCase();
+                                var _password = document.getElementById("inputPassword").value;
+                                var user = getUser(_user_name);
+                                if (user == null) {
+                                    var useCapture = true;
+                                    var onWriteEnd = function () {
+                                        //TODO ...
+                                    }
+                                    var onError = function () {
+                                        //TODO ...
+                                        sAlert("write login user to file failed.");
+                                    }
+                                    FileOperation.FileWrite(filePath, write_file_content, true, onWriteEnd, onError, useCapture);
+                                }
+                                else {
+                                    var old_password = user.user_info.password;
+                                    if (old_password != null && old_password != _password) {
+                                        //change the file_content password....
+                                        changeLoginUserPassword(_user_name, _password);
+                                    }
+                                }
+                            }
+                            //Store the login user information
+                            window.localStorage.login_user = responseText;
+                            login_user = JSON.parse(responseText);
+                            if (app_version == null) {
+                                //
+                                //TODO Get App Version... 
+                                //upload and setup....
+                                //
+                            }
+                            window.location.href = "DownLoad.html";
+                        }
+                        else {
+                            //login failed
+                            sAlert("Error:" + JSON.parse(responseText).response_msg + ".");
+                        }
+                    }
+                    break;
+                default: break;
+            }
+        }
+
+        $(function () {
+            $(".textDefault").click(function () {
+                $(this).prev(".cisco_input").focus();
+            })
+            $(".cisco_input").focusin(function () {
+                $(this).next(".textDefault").css('display', 'none');
+            });
+            $(".cisco_input").focusout(function () {
+                if ($(this).val() == "") {
+                    $(this).next(".textDefault").css('display', 'block');
+                }
+                else {
+                    $(this).next(".textDefault").css('display', 'none');
+                }
+            });
+            //Create basic directory information
+            FileOperation.CreateBasicDirectory();
+        });
+    </script>
+</head>
+<body>
+    <div class="login_wrapper">
+        <img alt="" src="images/Login_logo.png" class="login_logo" />
+        <div class="login_title">
+            CPE Compliance Check</div>
+        <ul>
+            <li>
+                <input type="text" id="inputUserName" class="cisco_input" style="width: 850px;" /><div
+                    class="textDefault">
+                    <img alt="" src="images/Login_user.png" />
+                    Username</div>
+            </li>
+            <li>
+                <input type="password" id="inputPassword" class="cisco_input" style="width: 850px;" /><div
+                    class="textDefault">
+                    <img alt="" src="images/Login_lock.png" />
+                    Password</div>
+            </li>
+            <li>
+                <!--<button id="request-button" class="cisco_btn" onclick="javascript:login_onclick();">
+                    Login</button>-->
+                <button id="request-button" class="cisco_btn" ontouchstart="javascript:login_onclick();">
+                    Login</button>
+            </li>
+            <li></li>
+        </ul>
+    </div>
+</body>
+</html>
